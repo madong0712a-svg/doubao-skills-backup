@@ -1,0 +1,19 @@
+# Python 缓存
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 运行时临时产物（待审核表、当天数据、预处理图不入库）
+*.docx
+*.xlsx
+*.png
+*.jpg
+qd_data.json
+verify.json
+skill_verify.json
+
+# 系统/编辑器
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/

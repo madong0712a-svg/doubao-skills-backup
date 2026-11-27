@@ -1,0 +1,11 @@
+{
+  "name": "户型图效果图工坊",
+  "installedAt": 1794896217655,
+  "source": "marketplace",
+  "version": "1.0.0",
+  "skillId": "skill_2110276003462762496",
+  "pay_mode": 0,
+  "description_zh": "上传户型图即可生成全套装修效果图：解读户型格局、选定装修风格、逐房间生成写实效果图与全屋 3D 鸟瞰图，并组装成带色卡、设计说明与落地清单的自包含 HTML 设计报告。",
+  "description_en": "Upload a floor plan and get a full rendering package: layout reading, style selection, per-room photorealistic renderings plus a 3D aerial view, assembled into a self-contained HTML report with palette, design notes and landing checklist.",
+  "iconSource": "letter:auto"
+}

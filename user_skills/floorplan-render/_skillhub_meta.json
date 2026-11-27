@@ -1,0 +1,11 @@
+{
+  "name": "AI生成装修效果图",
+  "installedAt": 1794896215755,
+  "source": "marketplace",
+  "version": "4.7.2",
+  "skillId": "skill_2105862727688925184",
+  "pay_mode": 0,
+  "description_zh": "读户型图识别全部房间，按指定风格一次性批量生成全屋装修效果图；强制同批输出真实比例平面俯视图（四层尺寸标注 + 墙体厚度 + 十一项工程自检，FAIL=0 才交付）。平面图未确认，一张效果图都不出；效果图提示词由脚本从布局数据生成、逐字复制使用，禁止人工转写。4.0 起内置两道安全闸：上传图安全审核 + 生成前合规校验——组装完不等于能发。居住画像（老人/儿童/宠物/居家办公）自动转为出图硬约束：儿童房圆角家具、老人房预留扶手位、紧凑空间收纳优先。一致性如实分级：L1 结构可保证、L2 件数多数可保证、L3 朝向不可靠、L4 尺寸与占墙比例做不到（以平面图为准，不吹完全一致）。4.7 起同户型可用一个 seed 保跨房一致、一次出多个风格版本对比、每房四机位环拍做漫游；并附水电施工参考（回路划分/插座点位/给排水点/防水面积/材料清单，从平面数据驱动，对齐 GB 规范）。附逐图 17 项质检与平台水印后处理、可施工性判定、物料清单与房源营销文案。",
+  "description_en": "Reads a floor plan, detects every room, and batch-generates whole-home renders in a chosen style. A true-scale top-down 2D floor plan is a mandatory companion output (four layers of dimensions, wall thickness, eleven engineering self-checks; nothing ships until FAIL=0). No render is produced before the plan view is confirmed, and every prompt is script-generated from the layout JSON, copied verbatim - never hand-written. Two safety gates since 4.0 (uploaded-image safety review plus pre-generation compliance check). Occupant profiles (elderly / children / pets / home office) become hard render constraints - rounded children's furniture, grab-bar space in senior rooms, storage-first layouts. Consistency is graded honestly - L1 structure guaranteed, L2 item count mostly guaranteed, L3 orientation unreliable, L4 size and wall-coverage ratio not achievable (the plan view governs). Ships 17-point QC with watermark post-processing, buildability verdicts, material lists and listing copy.",
+  "iconSource": "letter:auto"
+}

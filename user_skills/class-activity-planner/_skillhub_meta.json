@@ -1,0 +1,13 @@
+{
+  "name": "班级活动方案",
+  "installedAt": 1793773518320,
+  "source": "marketplace",
+  "version": "1.2.1",
+  "skillId": "skill_2084940068339097600",
+  "pay_mode": 0,
+  "description_zh": "腾讯SSV与北京大学基于深厚理论与经验沉淀联合研发。辅助班主任高效策划节日、班会、研学等活动；启发输出含目标、流程、资源、安全预案及反思的完整方案；带领落实全员参与，凸显深层教育意义",
+  "description_en": "Jointly developed by Tencent SSV and Peking University, built on deep theoretical foundations and field experience. Helps homeroom teachers efficiently plan holiday events, class meetings, and field trips; generates a complete plan covering objectives, procedures, resources, safety contingency plans, and reflection; drives full student participation while highlighting deeper educational significance.",
+  "iconSource": "https://openplatform-cdn.codebuddy.cn/public/24db4fbc-a6ce-494f-853c-ce08993c3d2f/avatar/skill/au_b152b11e-0b0.png",
+  "iconLocalPath": "C:\\Users\\madong\\.workbuddy\\skills\\class-activity-planner\\_icon.png",
+  "iconDownloadedFrom": "https://openplatform-cdn.codebuddy.cn/public/24db4fbc-a6ce-494f-853c-ce08993c3d2f/avatar/skill/au_b152b11e-0b0.png"
+}

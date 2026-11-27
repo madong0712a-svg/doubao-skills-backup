@@ -1,0 +1,11 @@
+{
+  "name": "居家风水营造师",
+  "installedAt": 1794806046510,
+  "source": "marketplace",
+  "version": "1.0.0",
+  "skillId": "skill_2109461451184881664",
+  "pay_mode": 0,
+  "description_zh": "以《八宅明镜》《阳宅三要》《阳宅十书》等经典为蓝本的应用型风水 Skill。用户上传户型图/房屋照片或文字描述，判断坐向、东四/西四宅与命卦，定位四吉四凶星与门主灶三要，给出可落地的布局与化煞建议。",
+  "description_en": "An applied fengshui skill grounded in classics such as \"Bazhai Mingjing\", \"Yangzhai Sanyao\", and \"Yangzhai Shishu\". Users upload floor plans/photos or describe their home in text; the skill determines orientation, East/West four-house types and life trigrams, locates the four auspicious and four inauspicious stars and the door-stove-bed essentials, and gives practical layout and remedy advice.",
+  "iconSource": "letter:auto"
+}

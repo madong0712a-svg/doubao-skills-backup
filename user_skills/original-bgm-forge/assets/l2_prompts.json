@@ -1,0 +1,124 @@
+{
+  "_meta": {
+    "name": "L2 自由 prompt 预设库",
+    "engine": "acestep",
+    "usage": "python acestep_bridge.py --preset <id> --duration 30 --out x.mp3 --mode direct",
+    "note": "所有 prompt 均为英文（ACE-Step 的 caption 为英文）。脚本会自动追加 'instrumental only, no vocals, background music'，预设里无需重复。",
+    "durations": "短视频建议 20~45s；公众号/长视频建议 60~120s",
+    "version": "1.0.0"
+  },
+  "presets": {
+    "guoxue_ink": {
+      "label": "国学 · 水墨古韵",
+      "scene": "国学经典短视频 / 诗词诵读 / 水墨画面",
+      "prompt": "traditional Chinese instrumental, guqin and guzheng, sparse bamboo flute dizi, deep temple ambience, ink-wash painting mood, contemplative and serene",
+      "bpm_hint": 62,
+      "duration_hint": 30,
+      "tags": ["国学", "古风", "古琴", "水墨"]
+    },
+    "guoxue_temple": {
+      "label": "国学 · 禅寺晨钟",
+      "scene": "道家/佛家文化 / 修行感悟 / 晨课",
+      "prompt": "zen meditation instrumental, distant temple bell, low singing bowl, gentle wind chime, minimal guqin pluck, spacious and sacred atmosphere",
+      "bpm_hint": 52,
+      "duration_hint": 45,
+      "tags": ["国学", "禅意", "冥想", "钟"]
+    },
+    "guoxue_epic_history": {
+      "label": "国学 · 史书大气",
+      "scene": "历史人物 / 王朝兴衰 / 家国情怀",
+      "prompt": "epic Chinese historical orchestral, taiko drums and erhu, sweeping strings, french horn swells, ancient battlefield grandeur, solemn and powerful",
+      "bpm_hint": 78,
+      "duration_hint": 45,
+      "tags": ["国学", "史诗", "历史", "二胡"]
+    },
+    "emotion_healing": {
+      "label": "情感 · 温柔治愈",
+      "scene": "女性成长 / 自我和解 / 温暖叙事",
+      "prompt": "warm healing instrumental, soft felt piano, airy string pad, gentle music box accents, morning sunlight feeling, comforting and hopeful",
+      "bpm_hint": 72,
+      "duration_hint": 30,
+      "tags": ["情感", "治愈", "钢琴", "半程赴山海"]
+    },
+    "emotion_release": {
+      "label": "情感 · 释怀离别",
+      "scene": "告别 / 放下 / 成长代价",
+      "prompt": "melancholic instrumental, slow solo piano with soft cello, sparse and breathy, rain at dusk mood, bittersweet and reflective",
+      "bpm_hint": 58,
+      "duration_hint": 35,
+      "tags": ["情感", "伤感", "大提琴", "离别"]
+    },
+    "emotion_empower": {
+      "label": "情感 · 觉醒力量",
+      "scene": "自我价值 / 逆袭 / 女性力量",
+      "prompt": "uplifting cinematic instrumental, building piano arpeggios, warm strings crescendo, light percussion entering, rising and empowering, triumphant but tender",
+      "bpm_hint": 88,
+      "duration_hint": 40,
+      "tags": ["情感", "力量", "励志", "渐强"]
+    },
+    "silver_nostalgia": {
+      "label": "银发 · 岁月怀旧",
+      "scene": "人生感悟 / 子女亲情 / 旧时光",
+      "prompt": "nostalgic instrumental, old upright piano, warm accordion, subtle vinyl warmth, slow waltz feel, reminiscent and gentle like old family photographs",
+      "bpm_hint": 66,
+      "duration_hint": 35,
+      "tags": ["银发", "怀旧", "手风琴", "亲情"]
+    },
+    "silver_morning": {
+      "label": "银发 · 晨间清朗",
+      "scene": "晨练 / 慢生活 / 日常烟火",
+      "prompt": "cheerful acoustic instrumental, fingerpicked guitar, light whistling melody, soft shaker percussion, sunny morning market ambience, relaxed and content",
+      "bpm_hint": 92,
+      "duration_hint": 30,
+      "tags": ["银发", "轻快", "吉他", "生活"]
+    },
+    "daily_vlog": {
+      "label": "日常 · 慢生活 vlog",
+      "scene": "生活记录 / 咖啡 / 书房 / 手作",
+      "prompt": "lo-fi chill instrumental, mellow electric piano, soft brushed drums, vinyl crackle, rainy afternoon cafe mood, laid-back and cozy",
+      "bpm_hint": 76,
+      "duration_hint": 40,
+      "tags": ["日常", "lo-fi", "vlog", "咖啡馆"]
+    },
+    "tension_open": {
+      "label": "开场 · 悬念钩子",
+      "scene": "前3秒抓人 / 悬念 / 盘点开头",
+      "prompt": "tense cinematic intro, pulsing low synth bass, ticking percussive texture, dissonant string swell, suspenseful build-up, mysterious and gripping",
+      "bpm_hint": 100,
+      "duration_hint": 15,
+      "tags": ["开场", "悬念", "紧张", "钩子"]
+    },
+    "dark_mystery": {
+      "label": "暗色 · 压抑悬疑",
+      "scene": "警示 / 深度思考 / 人性议题",
+      "prompt": "dark ambient instrumental, low drone, dissonant minor strings, distant metal resonance, sparse heartbeat percussion, oppressive and introspective",
+      "bpm_hint": 56,
+      "duration_hint": 40,
+      "tags": ["暗色", "悬疑", "低音", "警示"]
+    },
+    "ending_elevate": {
+      "label": "尾声 · 升华留白",
+      "scene": "结尾升华 / 金句收束 / 片尾",
+      "prompt": "serene closing instrumental, sustained piano chord fading, airy choir pad, gentle harp glissando, open and reflective, fading into silence",
+      "bpm_hint": 60,
+      "duration_hint": 25,
+      "tags": ["尾声", "升华", "留白", "片尾"]
+    },
+    "broll_nature": {
+      "label": "空镜 · 山水自然",
+      "scene": "风景空镜 / 四季 / 山川云海",
+      "prompt": "pastoral instrumental, wooden flute and zither, flowing guzheng arpeggios like water, birdsong hint, vast mountain and mist imagery, tranquil and expansive",
+      "bpm_hint": 64,
+      "duration_hint": 45,
+      "tags": ["空镜", "自然", "山水", "空灵"]
+    },
+    "arabic_exotic": {
+      "label": "异域 · 大漠丝路",
+      "scene": "丝绸之路 / 异域文化 / 神秘叙事",
+      "prompt": "middle eastern instrumental, oud and darbuka, desert caravan rhythm, exotic maqam scale, mysterious and ancient, trading route atmosphere",
+      "bpm_hint": 84,
+      "duration_hint": 35,
+      "tags": ["异域", "阿拉伯", "大漠", "丝路"]
+    }
+  }
+}

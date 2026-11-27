@@ -1,0 +1,232 @@
+# Excel 视觉输出规范
+
+## 0. 先判断是否需要美化
+
+**美化是为了降低阅读成本，不是默认动作。** 先确定授权范围与必要格式，在首次构建 / 写入时设置并保存；已保存文件的布局满足需求且没有具体异常时，直接继续交付，不重新引入逐格行高估算或截图。新建普通明细表复用 `references/guide-execution-flow.md` §5.1 的数据构建路径，不为每个子表重写排版函数。后续操作需要计算值时按该 reference 取值；只有用户要求 PDF / PNG 产物或预览，或已有具体版式异常需定位时，才用 `excel_lo_convert.py`，不直接调 `soffice`。
+
+> **最高优先级：用户 Prompt 中明确提出的格式要求。** 当用户指定颜色、字体、字号、边框、列宽、合并方式、图表或其他视觉格式时，如与本规范冲突，必须以用户要求为准；本规范只补充用户未明确指定的部分。
+
+- 以下场景默认只保留必要的数字格式和列宽适配，无需额外添加背景色、斑马纹、冻结、数据条或图表：
+  - 用户只要求计算、补充或统计结果。
+  - 临时明细、原始数据导出。
+  - 用户提供的源文件本身无样式，且没有要求制作正式报表。
+- 需要主动进行**最小充分的可视化增强**的场景：
+  - 用户明确要求美化、可视化、报表、模板、汇报或打印展示。
+  - 产物需要交付他人阅读、填写。
+  - 产物属于分组明细、排行、对比、经营分析或统计汇总，格式能明显表达数据关系。
+- **斑马纹或交替行底色不属于默认美化手段，不要主动添加。** 适用例外仅限用户明确要求，或源文件已经使用且新增内容需要延续；不能因为行数多、表格长或“看起来更专业”而启用。
+- 不要给简单小表同时套用深色表头、冻结窗格、数据条和多套底色。每一种格式都必须有明确含义。
+
+## 1. 保护用户源文件
+
+- 修改已有文件前，先观察字体、颜色、边框、对齐、列宽、数字格式和整体布局；源文件风格优先于通用样式。
+- 新建区域遵循相邻区域和同列的样式体系；已有待填格仅补值 / 公式时保留该格原样式，不能因原值为空就套邻格模板，也不因填完内容自动清除原提示色。不要对整个工作簿重新套用主题、列宽、字体或配色。
+- 跨工作簿复制样式时，用 `copy()` 分别复制 `font`、`fill`、`border`、`alignment`、`protection`，直接赋 `number_format`；不要跨工作簿复制内部 `_style` 索引。公式引用、合并范围、行高列宽与数据验证须按目标映射单独处理。
+- 清空内容只将目标格 `value` 置空；仅用户明确要求重置格式时才重置样式，不把清空混同于删除行列。
+- 保留公式、数据验证、条件格式、筛选、表格、合并区域、隐藏行列和 Sheet 结构；不要修改任务范围外的内容。
+- 插入、删除或移动行列后，检查相关公式和功能范围。无法安全保持时，采用不改变原结构的方案。
+- 本规范中的辅助函数默认用于新建表或用户明确要求重排的区域；处理源文件时必须限制作用范围并保留既有样式。
+
+## 2. 基础样式与数据格式
+
+### 标题、表头和数据区
+
+- 先根据主体表格的实际字段确定统一视觉边界 `min_col:max_col`。同一纵向报表中的大标题、分节标题、表头、底色带和分项汇总行必须复用该边界；如在允许场景使用外边框，也必须与该边界左右对齐。不要分别按标题文字长度或局部内容决定范围。
+- 标题行可在统一视觉边界内跨列合并，使用主题深色、白字、加粗和居中；普通筛选表头不得合并。
+- 视觉边界以最宽的有效主体表格为准，不使用 `ws.max_column` 直接推断，并排除长标题、备注、隐藏列、残留格式和任务范围外的内容。例如主体表格只有 A:B 时，即使长标题文字很多，也只合并和填充 A:B，不延伸到 C:D。
+- 表头与数据区保持明确层级，使用低饱和度底色、加粗和居中。
+- 新建结果区按标题、完整表头区和数据区分别定位，写入、冻结和筛选共用该布局；单行字段表的数据从 `header_row + 1` 开始，多行表头或既有模板沿用其实际数据起点，不压平重写。
+- **数据区默认不使用斑马纹或交替行底色。** 只有用户明确要求，或源文件已经使用且新增内容需要延续时才保留；数据行较多、表格较长或希望提升可读性，都不能单独作为添加斑马纹的理由。
+- 普通明细行之间不逐行添加分隔线，普通明细表末行也不添加收尾线。仅在表头底部、分组起始和汇总行使用连续实线，并减少垂直线；除非用户明确要求或源文件已有同类样式，不使用 `hair`、`dotted`、`dashed`、`dashDot` 等点状或虚线边框。只有合计行、允许使用的打印外框或用户明确要求时，表格底部才可出现边框。
+- 文本左对齐，数值右对齐，日期和短分类居中，所有内容垂直居中。
+- 沿用源文件字体；完全新建文件时默认中文使用`微软雅黑`，英文、数字使用 `Arial`。
+
+### 数据类型与显示
+
+- 百分比必须同时转换**存储值**并设置显示格式：Excel 的 `0%`、`0.0%` 只负责显示，并会把存储值乘以 100；要显示 `50%`，单元格实际值必须是 `0.5`。
+  - 来源是 `"50%"` 或语义明确的“百分数 50”时，写入 `0.5`；来源已经是比例值 `0.5` 时直接写入，不要再次除以 100。
+  - 严禁写入数值 `50` 后直接设置百分比格式（会显示为 `5000%`），也不要把 `"50%"` 作为文本写入，否则无法可靠参与计算。
+  - 纯数值的量纲不明确时，不要猜测它是百分数还是比例值；根据列名、单位、上下文或用户说明确认。
+- 日期：写入 `date`/`datetime` 并保持用户需要的日期格式。
+- 货币和普通数值：保持数值类型，按需要使用货币符号、千分位和一致的小数位。固定N位小数使用N个 `0`（如 `0.0000`），不使用省略尾零的 `#`；ROUND改变值，不替代显示格式。
+- 身份证号、电话号码、邮编、员工编号、订单号等虽然可能只包含数字，但属于标识符而非可计算数值。必须以字符串写入并设置文本格式 @，以保留前导零、完整位数和原始字符 
+- 用户要求标准化或转换格式时，以用户指令为准；否则保持原始显示。
+
+```python
+from copy import copy
+from openpyxl.styles import Alignment, Font, PatternFill, Side
+
+# 新建表头示例；修改源文件时先继承原样式，不要整表套用。
+palette = {'title': '3370FF', 'subtitle': '133C9A', 'summary': 'E1EAFF', 'line': 'B8C7D9'}
+line = Side(style='thin', color=palette['line'])
+for cell in ws[header_row][min_col - 1:max_col]:
+        cell.fill = PatternFill('solid', fgColor=palette['title'])
+        cell.font = Font(name=cell.font.name, bold=True, color='FFFFFF', size=11)
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        border = copy(cell.border)
+        border.bottom = line
+        cell.border = border
+
+def write_percentage(cell, value, source_scale='percent', decimals=0):
+    if isinstance(value, str) and value.strip().endswith('%'):
+        stored_value = float(value.strip()[:-1].replace(',', '')) / 100
+    else:
+        stored_value = float(value) / 100 if source_scale == 'percent' else float(value)
+    cell.value = stored_value
+    cell.number_format = '0%' if decimals == 0 else '0.' + '0' * decimals + '%'
+```
+
+## 3. 布局与主动可视化
+
+### 列宽、换行和冻结
+
+- 普通新建表按字段类型一次设置合理列宽、换行与必要行高，允许使用固定尺寸；不要求按全列最长内容或逐格精算。确需按内容估宽时，中文和全角字符可按 2 个字符估算；横向合并标题不参与单列宽度计算。
+- 列宽通常可取 8~50，长文本优先换行；保留完整内容，不为限制行数删减信息。普通表格不以长说明在默认视图全部展开为交付门槛，不自行增加溢出检查脚本或反复渲染微调。
+- 用户明确要求打印、指定尺寸或全文可见时按要求处理；已知表头、关键数值或内容遮挡等具体异常，只修受影响区域。预览器异常不直接证明源表有错；交付所需的排障可用最小副本区分文件与渲染问题。用户未要求预览且无已知异常时，不额外创建诊断用表。
+- 修改源文件时默认保留已有行高列宽；新增区域优先继承，已适配的不重设。不要调整隐藏行列或任务范围外的尺寸。
+- 冻结窗格默认关闭；长明细需要滚动定位表头或关键标识列时才启用。
+
+### 主动做可视化增强场景
+
+- 同量纲数值需要比较：对销售额、完成率、数量、占比等明细区使用数据条或色阶；排除编号、日期、标题和小计。
+- 存在业务阈值：使用条件格式突出未达标、超预算或逾期；阈值必须来自用户规则或数据语义。
+- 公式条件格式按应用区域左上角解释相对引用。复用规则到其他区域时同时平移公式、保留 `$` 绝对引用；例如在 `A1` 定义的规则应用到 `G2:G40`：
+
+```python
+from openpyxl.formula.translate import Translator
+from openpyxl.formatting.rule import FormulaRule
+from openpyxl.styles import PatternFill
+
+target_range = 'G2:G40'
+target_anchor = target_range.split(':')[0]
+formula = Translator('=A1>$B$1', origin='A1').translate_formula(target_anchor)
+ws.conditional_formatting.add(target_range, FormulaRule(
+    formula=[formula[1:]], fill=PatternFill('solid', fgColor='FFF2CC')))
+```
+
+已有 `excel_format_range.py` 调用可在 `--cond-format` 的 formula 规格加 `"origin":"A1"`，脚本按目标范围平移 `params.formula`；不提供 origin 时公式已按目标锚点编写。不在每个区域继续硬写 `A1`，有意固定的查找列用 `$A1`。
+- 行数据存在连续分组：使用同一主题的浅色层级、顶部边框、小标题或分项汇总行；不要插入纯空白行分隔。
+- “维度—类别—数值/占比”汇总：可纵向合并维度名称，并增加简短的特征说明列。
+- 长明细：突出表头、保持筛选区域连续，必要时增加小计行。
+
+### 合并和分组边界
+
+- 操作型明细需要排序、筛选或逐行复制时，不使用纵向合并；保留重复分类值并用边框或底色分组。
+- 展示型汇总才使用纵向合并。合并前确认目标区域没有不同值，避免数据丢失。
+- 分组底色使用同一主题的 2~3 个浅色层级；不要为每组使用一种高饱和主色。
+- 常规的单一连续表格不添加闭合外边框。仅在用户提及打印，或同一 Sheet 存在多个相互独立且容易混淆的内容区域时，才为每个完整区域添加浅灰色细实线外边框；连续表格内的分组不是独立区域，不要逐组套框。
+- 修改边框时复制原边框并只替换目标边，避免覆盖其他边框。
+
+```python
+import unicodedata
+from copy import copy
+from openpyxl.cell.cell import MergedCell
+from openpyxl.styles import Alignment, Side
+from openpyxl.utils import get_column_letter
+
+def display_width(value):
+    return sum(2 if unicodedata.east_asian_width(ch) in ('F', 'W') else 1
+               for ch in str(value or ''))
+
+def fit_one_column(ws, col, min_row, max_row, min_w=8, max_w=50):
+    cells = [ws.cell(row, col) for row in range(min_row, max_row + 1)]
+    values = [cell.value for cell in cells
+              if cell.value is not None and not isinstance(cell, MergedCell)]
+    ws.column_dimensions[get_column_letter(col)].width = max(
+        min_w, min(max((display_width(v) for v in values), default=0) + 3, max_w))
+
+def set_top_border(cell, color='B8C7D9'):
+    border = copy(cell.border)          # 只替换目标边，保留其余三边
+    border.top = Side(style='thin', color=color)
+    cell.border = border
+
+def merge_group_label(ws, start_row, end_row, col=1):
+    values = [ws.cell(row, col).value for row in range(start_row, end_row + 1)
+              if ws.cell(row, col).value not in (None, '')]
+    if len({str(value) for value in values}) > 1:
+        raise ValueError('合并区域包含不同值，停止合并')
+    value = values[0] if values else None
+    ws.merge_cells(start_row=start_row, start_column=col,
+                   end_row=end_row, end_column=col)
+    ws.cell(start_row, col, value=value).alignment = Alignment(
+        horizontal='center', vertical='center', wrap_text=True)
+```
+
+## 4. 配色
+
+- 优先沿用源文件配色；新建文件再从第 2 节色板中选择接近任务语境的一套，色板不是强制映射。
+- 深色背景使用白字，浅色背景使用深灰字，次要信息使用中性灰。
+- 同一张表通常不超过 3 种主色；分组优先使用同一主题的深浅变化。
+- 条件格式、状态色和分组色不要争夺注意力；已有明确状态色时减少其他填充。
+- 颜色不能是唯一信息载体，异常和状态同时保留文字、数值或符号。
+
+## 5. 图表
+
+> 按最终载体分流：交付飞书表格时，先导入，再按主文档「Must-CLI 桥接」用 `+chart-create` 建在线图表对象；按交付契约交付完整 Excel 时，可用 openpyxl 建本地图表，适用本节规则。
+
+- 只有图表能比表格更快表达关系时才添加；简单明细和小型对照表不主动加图。
+- 类别比较优先条形图/柱形图，时间趋势使用折线图，构成占比仅在类别不超过 5 个且互斥时使用饼图。
+- 折线图及组合图中的折线系列默认关闭整系列的逐点标签，仅用户明确要求时开启；末点、峰值、关键点等单点标签可按展示需要单独设置；其他基础图默认开启数据标签，密集时依次采用建议尺寸、稀疏标签、Top-N 或拆图。
+- Y 轴显示范围默认自动适配，不按数据源单列的最小值 / 最大值主动设限；组合图先比较系列单位和量级，把会被压扁的系列放到右轴。
+- 饼图默认将图例放在底部；保持相对固定的饼区，主要按最长标签增加两侧留白。类别过多时优先 Top-N 或条形图，不要随类别数线性加宽。
+- 标题、坐标轴标签与多系列图例是必备项，不因「图意已明显」省略；单位等补充信息避免与轴标签重复表达。
+- **图表默认放在新建的独立工作表中**，命名为“图表”或与主题对应的“XX分析”；源数据保留在原工作表，图表跨 Sheet 引用数据。存在两张及以上图表时必须使用独立工作表，并按网格排列，禁止重叠或遮挡。
+- 只有用户明确要求图表与数据同屏，或仅有一张小型图表且已确认存在足够的连续空白区域时，才允许嵌入数据工作表；设置图表锚点与尺寸时避开标题、数据、表头、备注和其他对象。
+
+## 6. Sheet 组织
+
+- 一个 Sheet 应有清晰的阅读主题，但不要机械拆分相关的小型内容。
+- 原始明细与正式汇总、不同对象/周期且阅读路径明显不同、单表过长难以浏览时，拆分到独立 Sheet。
+- 相关的简短摘要、说明和同主题明细可以放在同一 Sheet，通过标题、间距和分区表达层级。
+- 不要把大量逻辑无关的表堆叠在同一 Sheet，也不要为了“整洁”创建大量只有几行内容的 Sheet。
+
+## 7. 打印场景的可见版式
+
+用户要求打印、PDF 或指定页面版式时，按目标范围设置必要的布局、纸张方向和缩放参数；为完成交付或定位已知异常，可做必要的渲染诊断。用户未要求且无已知异常时，不主动给整簿增加打印配置或预览流程。
+
+用户要求 PDF / PNG 产物或预览，或需定位已知具体版式异常时，用随技能分发的脚本隔离 LibreOffice profile，不直接调用共享 profile 的 `soffice --convert-to`：
+
+```bash
+python3 scripts/excel_lo_convert.py ./output.xlsx pdf --outdir ./preview
+python3 scripts/excel_lo_convert.py ./output.xlsx png --sheet 汇总 --outdir ./preview
+```
+
+png 只渲染一个子表的首页、csv 只导出一个子表（默认第一个可见子表），`--sheet` 选子表。退出 `0` 时产物路径以 stdout JSON 的 `output` 为准；`3` 是转换失败，按 stderr 修正；`4` 表示没有 LibreOffice，不反复重跑。**可选预览缺少 LibreOffice 时跳过，不安装引擎，不另建 HTML 镜像或浏览器截图链路；保存、导入和交付仍按原契约执行。** 用户明确要求的 PDF / PNG 产物或预览须用已有可用工具完成，或说明该项未完成。为定位已知异常而无法渲染时，保留受影响范围的修复与限制说明，不扩展成全表验收。
+
+- 先确定视觉版式方向：用户明确指定纵向或横向时严格遵循；只提及 A4/打印而未指定时默认纵向。仅当宽表在纵向下会出现截字、过度换行或字号低于 10pt 时，才采用横向视觉密度，并在交付说明中注明。
+- 以一页 A4 的信息密度为目标：纵向列宽总和约 95，横向约 140；内容过多时重组为摘要，不压成不可读的小字。需要打印 / PDF 输出时再按要求设置对应纸张方向与缩放，普通数据导出不套用页面限制。
+- 默认不使用斑马纹和大面积装饰底色，只保留表头、分组、小计和异常等语义强调。
+- 为完整内容区增加浅灰色细实线闭合外边框；保证字号不小于 10pt。
+- 用户要求的打印范围内，标题、正文、备注和合计必须完整可见，不得截字、溢出、显示 `####` 或被图表/图片遮挡；不将本节的打印要求用于普通数据导出。
+- 修改源文件时只清除已确认属于斑马纹的行，不要清除状态色、分组色或其他语义填充。
+
+```python
+from copy import copy
+from openpyxl.styles import PatternFill
+from openpyxl.utils import get_column_letter
+
+def prepare_print_visual_layout(ws, min_row, max_row, min_col, max_col,
+                                confirmed_zebra_cells=()):
+    """只调整可见版式；不要写入打印配置或清除语义填色。"""
+    ws.sheet_view.showGridLines = False
+    for cell in confirmed_zebra_cells:  # 仅清除已确认的斑马纹单元格
+        cell.fill = PatternFill(fill_type=None)
+
+    for row in ws.iter_rows(min_row=min_row, max_row=max_row,
+                            min_col=min_col, max_col=max_col):
+        for cell in row:
+            font = copy(cell.font)
+            font.size = max(font.size or 10, 10)
+            cell.font = font
+            if isinstance(cell.value, str) and not cell.value.startswith('='):
+                alignment = copy(cell.alignment)
+                alignment.wrap_text = True
+                cell.alignment = alignment
+
+    for col in range(min_col, max_col + 1):
+        letter = get_column_letter(col)
+        width = ws.column_dimensions[letter].width or 10
+        ws.column_dimensions[letter].width = max(6, min(width, 24))
+```
+
+===== 全文完（共 232 行）=====

@@ -1,0 +1,23 @@
+{
+  "name": "家居风水阳宅布局",
+  "installedAt": 1794806262357,
+  "source": "marketplace",
+  "version": "1.1.15",
+  "skillId": "skill_2107716545377546240",
+  "pay_mode": 0,
+  "examples_zh": [
+    "我家坐北朝南，2020年入住，12楼西户。男主人1985年3月8日上午9点生，出生地杭州。搬进来以后总觉得不太顺，帮我看下卧室床位和书房书桌摆哪个方位合适。",
+    "我的办公室坐东朝西，办公桌正对着门。我1988年11月2日下午3点生，男，出生地成都。帮我看办公桌该朝哪个方向，今年的流年飞星落在哪一宫。",
+    "1990年6月18日上午10点生，女，出生地武汉。今年打算重新装修再搬家，帮我看下住宅方位宜忌和合适的乔迁时间。"
+  ],
+  "examples_en": [
+    "My home sits north and faces south; we moved in during 2020, 12th floor, west side. The owner is male, born 8 March 1985 at 9 in the morning in Hangzhou. Things have felt off since we moved in. Read which positions suit the bed in the main bedroom and a desk in the study.",
+    "My office sits east and faces west, and my desk points straight at the door. I am male, born 2 November 1988 at 3 in the afternoon in Chengdu. Tell me which direction the desk should face, and which palace this year's flying star lands in.",
+    "Born 18 June 1990 at 10 am, female, birthplace Wuhan. I plan to renovate and move this year. Read the orientation of my home and a suitable timing for the move."
+  ],
+  "description_zh": "看家居风水与阳宅布局的吉凶方位，书桌、床位、灶位与办公桌的朝向宜忌，入户门与各房间吉凶，以及流年飞星的落宫与装修动工的方位取舍；配合八字看喜用方位与事业财运。输出图文报告。",
+  "description_en": "Works out the ming gua and the Eight Mansions of a home and reads its feng shui and layout, covering which positions and orientations suit a desk, a bed, a stove or an office desk, which directions favour the entrance, the living room and each room, where the yearly flying stars land, and what that means for renovation, moving or building work. It also reads a birth chart for a person's favoured directions, career, wealth and yearly luck, and converts between solar and lunar dates and solar terms. Produces an illustrated reading report. For entertainment and cultural reference only, not absolute.",
+  "iconSource": "https://openplatform-cdn.codebuddy.cn/public/common/capability_cover/eb88a9bb-d9c9-48e1-8296-f558f819f6d6/9fbeb3ef-8239-4a78-8d5c-89c7b3c1b953.png",
+  "iconLocalPath": "C:\\Users\\madong\\.workbuddy\\skills\\zhaiyun-charting\\_icon.png",
+  "iconDownloadedFrom": "https://openplatform-cdn.codebuddy.cn/public/common/capability_cover/eb88a9bb-d9c9-48e1-8296-f558f819f6d6/9fbeb3ef-8239-4a78-8d5c-89c7b3c1b953.png"
+}

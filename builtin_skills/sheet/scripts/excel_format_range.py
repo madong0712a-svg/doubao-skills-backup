@@ -1,0 +1,383 @@
+#!/usr/bin/env python3
+"""
+对单元格范围一次性应用样式（字体/底色/边框/对齐/数值格式/合并/条件格式）。
+
+用法示例：
+  python3 scripts/excel_format_range.py file.xlsx Sheet1 A1 --end C1 --bold --bg-color FFFF00
+  python3 scripts/excel_format_range.py file.xlsx Sheet1 B2:D10 --number-format "0.0%" --align center --wrap
+  python3 scripts/excel_format_range.py file.xlsx Sheet1 A1:E20 --cond-format \
+      '{"type":"color_scale","params":{"start_type":"min","start_color":"FFAA0000","end_type":"max","end_color":"FF00AA00"}}'
+"""
+import argparse
+import json
+import re
+from copy import copy, deepcopy
+from pathlib import Path
+
+try:
+    from openpyxl.cell.rich_text import CellRichText, TextBlock
+    from openpyxl.formula.tokenizer import TokenizerError
+    from openpyxl.formula.translate import Translator, TranslatorError
+    from openpyxl.utils.cell import column_index_from_string, coordinate_to_tuple, get_column_letter
+    from openpyxl.styles import Color, PatternFill, Protection, Side
+    from openpyxl.formatting.rule import (
+        CellIsRule,
+        ColorScaleRule,
+        DataBarRule,
+        FormulaRule,
+        IconSetRule,
+    )
+except ModuleNotFoundError as _missing:  # 缺少 Python 库时先安装，再重跑原操作
+    import sys
+
+    sys.stderr.write(
+        f"\n[excel_format_range] 本机 Python 缺少 {_missing.name}，本脚本未执行，本地文件未修改。\n"
+        "  请在运行本脚本的同一 Python 环境安装：python3 -m pip install openpyxl\n"
+        "  安装成功后重跑原命令；安装失败则说明本次格式处理未执行。\n"
+    )
+    raise SystemExit(1) from _missing
+
+from _excel_utils import emit, emit_error, load_or_create_wb, parse_range, require_sheet
+from _formula_references import MAX_EXCEL_COLUMN, axis_range, split_reference
+
+MAX_EXCEL_ROW = 1048576
+
+
+class _GridTranslator(Translator):
+    def __init__(self, formula, origin, column_checks=None):
+        super().__init__(formula, origin)
+        self.column_checks = column_checks
+
+    @staticmethod
+    def translate_row(row_str, rdelta):
+        absolute = row_str.startswith('$')
+        row = int(row_str.lstrip('$')) + (0 if absolute else rdelta)
+        if not 1 <= row <= MAX_EXCEL_ROW:
+            raise TranslatorError(f'row {row} is outside the Excel grid')
+        return row_str if absolute else str(row)
+
+    @staticmethod
+    def translate_col(col_str, cdelta):
+        absolute = col_str.startswith('$')
+        column = column_index_from_string(col_str.lstrip('$')) + (0 if absolute else cdelta)
+        if not 1 <= column <= MAX_EXCEL_COLUMN:
+            raise TranslatorError(f'column {column} is outside the Excel grid')
+        return col_str if absolute else get_column_letter(column)
+
+    @classmethod
+    def _translate_endpoint(cls, address, rdelta, cdelta):
+        cell = cls.CELL_REF_RE.fullmatch(address)
+        if cell is None:
+            if re.fullmatch(r'\$[A-Za-z]{1,3}', address):
+                return cls.translate_col(address, cdelta)
+            return address
+        column, row = cell.groups()
+        # A bare name outside the A1 grid can be a defined name in Excel.
+        if ('$' not in address and
+                (column_index_from_string(column) > MAX_EXCEL_COLUMN or int(row) > MAX_EXCEL_ROW)):
+            return address
+        return cls.translate_col(column, cdelta) + cls.translate_row(row, rdelta)
+
+    def _record_qualified_columns(self, endpoints, shifted, reference):
+        names = {column.casefold() for (_, address), translated in zip(endpoints, shifted)
+                 if not address.startswith('$') for column in (address, translated)}
+        if not names:
+            return
+        sheets = []
+        for prefix, _ in endpoints:
+            sheet = prefix[:-1]
+            if sheet.startswith("'") and sheet.endswith("'"):
+                sheet = sheet[1:-1].replace("''", "'")
+            sheets.append(sheet.casefold())
+        left, right = sheets
+        if left != right or self.column_checks is None:
+            raise ValueError(f'ambiguous range reference: {reference}')
+        self.column_checks.append((left, names, reference))
+
+    def translate_range(self, reference, rdelta, cdelta):
+        intersection, endpoints = split_reference(reference)
+        both_qualified = len(endpoints) == 2 and all(prefix for prefix, _ in endpoints)
+        coordinates = axis_range(endpoints, allow_qualified_columns=both_qualified)
+        if coordinates:
+            shifted = super().translate_range(coordinates, rdelta, cdelta).split(':')
+            if both_qualified and cdelta and self.COL_RANGE_RE.fullmatch(coordinates):
+                self._record_qualified_columns(endpoints, shifted, reference)
+        else:
+            shifted = [self._translate_endpoint(address, rdelta, cdelta) for _, address in endpoints]
+        return intersection + ':'.join(prefix + address for (prefix, _), address in zip(endpoints, shifted))
+
+
+def _load_json_arg(raw: str):
+    text = raw.strip()
+    if text.startswith("@"):
+        path = text[1:].strip().strip("\"'")
+        text = Path(path).read_text(encoding="utf-8-sig")
+    return json.loads(text)
+
+
+def _normalize_color(c: str) -> str:
+    c = c.strip().upper().lstrip("#")
+    return c if len(c) == 8 else f"FF{c}"
+
+
+def _translate_formula(value, origin, target_anchor, target_end, column_checks=None):
+    destination = target_anchor
+    try:
+        translator = _GridTranslator(value if value.startswith('=') else '=' + value, origin, column_checks)
+        formula = translator.translate_formula(destination)
+        # Relative A1 references move monotonically from the first to the last cell.
+        if target_end is not None and target_end != target_anchor:
+            destination = target_end
+            translator.translate_formula(destination)
+    except (TokenizerError, TranslatorError, ValueError, IndexError) as error:
+        raise ValueError(f'formula translation from {origin} to {destination}: {error}') from error
+    return formula[1:]
+
+
+def _build_conditional_rule(spec: dict, target_anchor=None, target_end=None, *, column_checks=None):
+    rule_type = spec.get("type")
+    params = dict(spec.get("params", {}))
+    if rule_type == "color_scale":
+        return ColorScaleRule(**params)
+    if rule_type == "data_bar":
+        return DataBarRule(**params)
+    if rule_type == "icon_set":
+        return IconSetRule(**params)
+    if rule_type == "formula":
+        if 'origin' in spec:
+            origin = spec['origin']
+            if not isinstance(origin, str) or not re.fullmatch(r'[A-Za-z]{1,3}[1-9][0-9]{0,6}', origin) or target_anchor is None:
+                raise ValueError('formula origin requires a cell and a target range')
+            origin_row, origin_column = coordinate_to_tuple(origin)
+            if not 1 <= origin_row <= MAX_EXCEL_ROW or not 1 <= origin_column <= MAX_EXCEL_COLUMN:
+                raise ValueError('formula origin must be within the Excel grid')
+            formulas = params.get('formula')
+            if not isinstance(formulas, list) or not formulas or any(not isinstance(value, str) or not value for value in formulas):
+                raise ValueError('formula must be a nonempty list of formula strings')
+            params['formula'] = [
+                _translate_formula(value, origin, target_anchor, target_end, column_checks) for value in formulas]
+        fill_spec = params.get('fill')
+        if isinstance(fill_spec, dict):
+            color = _normalize_color(fill_spec.get('fgColor', 'FFC7CE'))
+            params['fill'] = PatternFill(start_color=color, end_color=color, fill_type='solid')
+        return FormulaRule(**params)
+    if rule_type == "cell_is":
+        fill_spec = params.get("fill")
+        if isinstance(fill_spec, dict):
+            fg = _normalize_color(fill_spec.get("fgColor", "FFC7CE"))
+            params["fill"] = PatternFill(start_color=fg, end_color=fg, fill_type="solid")
+        return CellIsRule(**params)
+    raise ValueError(f"Unsupported conditional format type: {rule_type}")
+
+
+def _validate_qualified_column_names(workbook, column_checks):
+    workbook_names = {name.casefold() for name in workbook.defined_names}
+    sheet_names = {sheet.title.casefold(): {name.casefold() for name in sheet.defined_names}
+                   for sheet in workbook.worksheets}
+    for sheet, names, reference in column_checks:
+        if sheet not in sheet_names or names & sheet_names[sheet] or names & workbook_names:
+            raise ValueError(f'ambiguous range reference: {reference}')
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("filepath")
+    p.add_argument("sheet")
+    p.add_argument("start", help="起始单元格，可写成 'A1' 或 'A1:C5'")
+    p.add_argument("--end", help="结束单元格（start 用 'A1:C5' 时无需）")
+    # 字体
+    p.add_argument("--bold", action="store_true")
+    p.add_argument("--italic", action="store_true")
+    p.add_argument("--underline", action="store_true")
+    p.add_argument("--font-size", type=int)
+    p.add_argument("--font-color")
+    p.add_argument("--font-name")
+    # 填充与边框
+    p.add_argument("--bg-color")
+    p.add_argument("--border-style", choices=["thin", "medium", "thick", "dashed", "dotted", "double"])
+    p.add_argument("--border-color")
+    p.add_argument("--border-sides", help="要修改的边，逗号分隔：top,bottom,left,right；使用 --border-style 时必填")
+    # 数值与对齐
+    p.add_argument("--number-format")
+    p.add_argument("--align", choices=["left", "center", "right", "justify"])
+    p.add_argument("--vertical", choices=["top", "center", "bottom"])
+    p.add_argument("--wrap", action="store_true")
+    # 合并
+    p.add_argument("--merge", action="store_true")
+    # 保护
+    p.add_argument("--protection", help='保护配置，内联 JSON 或 "@./protection.json"（UTF-8 文件）')
+    # 条件格式
+    p.add_argument("--cond-format", help='条件格式，内联 JSON 或 "@./cond-format.json"（UTF-8 文件）')
+    args = p.parse_args()
+
+    try:
+        sr, sc, er, ec = parse_range(args.start, args.end)
+    except ValueError as e:
+        emit_error(str(e))
+
+    font_requested = any((args.bold, args.italic, args.underline, args.font_size, args.font_color, args.font_name))
+
+    fill = None
+    if args.bg_color:
+        c = _normalize_color(args.bg_color)
+        fill = PatternFill(start_color=c, end_color=c, fill_type="solid")
+
+    border_side = None
+    border_sides = []
+    if args.border_style:
+        if not args.border_sides:
+            emit_error("--border-sides is required with --border-style; choose from top,bottom,left,right")
+        border_sides = [part.strip().lower() for part in args.border_sides.split(",") if part.strip()]
+        invalid_sides = sorted(set(border_sides) - {"top", "bottom", "left", "right"})
+        if invalid_sides:
+            emit_error(f"Invalid --border-sides: {','.join(invalid_sides)}")
+        bc = _normalize_color(args.border_color or "000000")
+        border_side = Side(style=args.border_style, color=Color(rgb=bc))
+    elif args.border_sides:
+        emit_error("--border-sides requires --border-style")
+
+    alignment_requested = any((args.align, args.wrap, args.vertical))
+
+    protect = None
+    if args.protection:
+        try:
+            protect = Protection(**_load_json_arg(args.protection))
+        except Exception as e:
+            emit_error(f"Invalid --protection JSON: {e}")
+
+    rule = None
+    column_checks = []
+    if args.cond_format:
+        try:
+            rule = _build_conditional_rule(_load_json_arg(args.cond_format), f'{get_column_letter(sc)}{sr}',
+                                           f'{get_column_letter(ec)}{er}', column_checks=column_checks)
+        except (OSError, ValueError, TypeError, KeyError, AttributeError) as e:
+            emit_error(f"Failed to apply conditional format: {e}")
+
+    wb = load_or_create_wb(args.filepath)
+    try:
+        ws = require_sheet(wb, args.sheet)
+    except ValueError as e:
+        emit_error(str(e))
+
+    if column_checks:
+        try:
+            _validate_qualified_column_names(wb, column_checks)
+        except ValueError as e:
+            emit_error(f"Failed to apply conditional format: {e}")
+
+    merge_requested = args.merge and (er > sr or ec > sc)
+    merge_source = None
+    if merge_requested:
+        non_empty = [
+            ws.cell(row=r, column=c)
+            for r in range(sr, er + 1)
+            for c in range(sc, ec + 1)
+            if ws.cell(row=r, column=c).value not in (None, "")
+        ]
+        distinct = {(type(cell.value).__name__, repr(cell.value)) for cell in non_empty}
+        if len(distinct) > 1:
+            emit_error("Refusing to merge: target range contains different non-empty values")
+        merge_source = non_empty[0] if non_empty else None
+
+    for r in range(sr, er + 1):
+        for c in range(sc, ec + 1):
+            cell = ws.cell(row=r, column=c)
+            if font_requested:
+                font = copy(cell.font)
+                if args.bold:
+                    font.bold = True
+                if args.italic:
+                    font.italic = True
+                if args.underline:
+                    font.underline = "single"
+                if args.font_size:
+                    font.size = args.font_size
+                if args.font_name:
+                    font.name = args.font_name
+                if args.font_color:
+                    font.color = Color(rgb=_normalize_color(args.font_color))
+                cell.font = font
+                if isinstance(cell.value, CellRichText):
+                    # Shared-string cells may reference the same rich-text object.
+                    rich_text = deepcopy(cell.value)
+                    for run in rich_text:
+                        if not isinstance(run, TextBlock):
+                            continue
+                        if args.bold:
+                            run.font.b = font.b
+                        if args.italic:
+                            run.font.i = font.i
+                        if args.underline:
+                            run.font.u = font.u
+                        if args.font_size:
+                            run.font.sz = font.sz
+                        if args.font_name:
+                            run.font.rFont = font.name
+                        if args.font_color:
+                            run.font.color = copy(font.color)
+                    cell.value = rich_text
+            if fill is not None:
+                cell.fill = fill
+            if border_side is not None:
+                border = copy(cell.border)
+                for side_name in border_sides:
+                    setattr(border, side_name, border_side)
+                cell.border = border
+            if alignment_requested:
+                alignment = copy(cell.alignment)
+                if args.align:
+                    alignment.horizontal = args.align
+                if args.vertical:
+                    alignment.vertical = args.vertical
+                if args.wrap:
+                    alignment.wrap_text = True
+                cell.alignment = alignment
+            if protect is not None:
+                cell.protection = protect
+            if args.number_format:
+                cell.number_format = args.number_format
+
+    range_str = f"{args.start}" if (args.end is None and ":" not in args.start) else (
+        args.start if ":" in args.start else f"{args.start}:{args.end}"
+    )
+
+    if merge_requested:
+        anchor = ws.cell(row=sr, column=sc)
+        if anchor.value in (None, "") and merge_source is not None:
+            anchor.value = merge_source.value
+        for r in range(sr, er + 1):
+            for c in range(sc, ec + 1):
+                if (r, c) != (sr, sc):
+                    ws.cell(row=r, column=c).value = None
+        ws.merge_cells(start_row=sr, start_column=sc, end_row=er, end_column=ec)
+
+    if args.cond_format:
+        try:
+            ws.conditional_formatting.add(range_str, rule)
+        except Exception as e:
+            emit_error(f"Failed to apply conditional format: {e}")
+
+    try:
+        wb.save(args.filepath)
+    except Exception as e:
+        emit_error(f"Failed to save workbook: {e}")
+
+    emit({
+        "status": "success",
+        "range": range_str,
+        "sheet": args.sheet,
+        "merged": bool(merge_requested),
+        "applied": {
+            "font": bool(font_requested),
+            "fill": fill is not None,
+            "border": border_side is not None,
+            "align": alignment_requested,
+            "number_format": bool(args.number_format),
+            "conditional_format": bool(args.cond_format),
+        },
+    })
+
+
+if __name__ == "__main__":
+    main()

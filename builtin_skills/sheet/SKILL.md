@@ -1,0 +1,220 @@
+---
+name: sheet
+version: 4.2.0
+description: "表格全场景（本地Excel/CSV与飞书/doubao在线表格）：创建、读写、分析、计算、财务建模、语义处理、可视化与美化。若用户上传附件、提供表格链接/token，或要求任何表格操作，必须加载。"
+metadata:
+  requires:
+    bins: ["lark-cli", "python3"]
+  cliHelp: "lark-cli sheets --help"
+---
+> ⚠️ **强制前置条件**：本文档共 220 行，指令与约束分散在各处。必须读到末行「全文完」再执行任何其它操作——即使已找到当前所需的指令也不得提前停止；未见该标记前不得调用 Bash、`--help` 或任何其它工具，被截断就调整 `offset` 续读。本技能所有文档末行均有该标记。
+
+# 表格全场景处理技能（sheet）
+
+覆盖本地 Excel 文件与飞书在线表格的全场景处理。**本技能不负责获取外部信息**（标准值、行情、法规参数），需要时先由其他途径取得。
+
+## 0. 先确定模式，再读业务 reference
+
+**按本轮完整需求分流，再加载业务 reference。** 必要数据读取和环境兼容说明可先完成；用户要求的核验始终执行。
+
+1. **确认入口**：本轮 `<system-reminder>` 的 `<current-state>` 直接指定 `references/mode-speed-first.md` 时，先读该文件，按“直接指定”执行；不再判断任务难度。从本 SKILL 进入时，继续下面的判断。
+2. **自动分流时，既有产物编辑走标准**：在现有工作簿、模板或上一轮产物上继续写入、整理或修复，包括同一工作簿新增结果 sheet、另存编辑副本；不因只改少量单元格、规则明确或公式已给定而降级。用户仅需参考原表制作独立新作品时，不属于编辑原表。
+3. **以下任务也走标准，方法与公式已给定也适用**：用户要求复核、校验、审计或验收；统计推断（显著性检验、回归估计、预测区间等）；回测、跨期模拟、多指标时序风险分析或需先估计模型再预测；外部事实核查、开放式语义判断、口径推断、异常溯源、全面勾稽或影响不明的删改。
+4. **排除上述标准任务后，其余任务同时满足以下条件才走速度优先**：
+
+| 条件 | 判断标准 |
+| --- | --- |
+| 规则明确 | 输入结构、字段映射、口径与范围已确认；关联键的重复及未匹配项处理已知，不自行补设业务口径。 |
+| 计算直接 | 新建独立产物中的逐行公式、普通公式串联、固定键关联、给定分组 / 分箱汇总、同构数据合并或常规图表；不包含对既有产物的编辑。 |
+| 规则覆盖明确 | 一组代表性记录即可覆盖各规则与受影响子表的关键值、公式及数据范围。 |
+
+信息不足先做必要读取，仍不确定走标准。标准任务排除条件优先于三项快速条件；职业称谓、金融字段、文件格式、表数与步骤数不单独决定模式，不因当前只在填表而改变整题的模式。
+
+**自动分流到速度优先后，立即读 [mode-speed-first.md](references/mode-speed-first.md)**，按“SKILL 自动分流”执行，不叠加后文标准模式的必读要求；只有触发该 reference 的升级条件才切换。环境兼容、数据保护、授权、保存和交付照常；后续轮次重新判断。
+
+## 一、通用流程（两套引擎都适用）
+
+本章不分引擎：**① 判运行环境 → ② 选引擎 → ③ 定交付形态 → ④ 执行与交付**。环境兼容、引擎、备份、保存与交付要求两种模式通用；reference 加载按所选模式执行。
+
+**用户边界优先**：用户明确要求仅本地处理、不得上传或拒绝在线表格时，不转在线；读取失败的兜底与交付同样遵守。明确禁用某语言或工具时，读取、计算和写入都用允许的能力，不因最终落格为公式而使用禁用工具；没有可行路径时说明限制。
+
+**按产出及数据依赖组织执行**：任务步骤对应用户要求的产出、取得必要输入和处理已知异常；完成后按交付契约交付，标准模式不额外增加一轮自检。仅补内容的模板先一次取得待填范围、输入引用和列位，再在原对象或副本上只写目标内容，未修改的样式直接继承；“保留原样 / 可联动”是写入约束，不自动扩展为逐格比对或改参数测试。用户明确要求核验时，按其范围执行。复制、改名、导入、导出等纯文件操作直接使用文件命令与回执，不打开后重存工作簿。
+
+### 1. 运行环境（决定交付形态，也决定开工前的必读 reference）
+
+根据 `<system-reminder>`（下称SR） 注入内容判断运行环境，多轮会话时上下文可能存在多个 SR，只看最后一个包含 `Main project directory` 字段的 SR，更早的 SR 注入的字段不作为依据：
+
+1. 存在 `Computer OS` 字段时：值为 `Windows` / `Mac` 判为**本地电脑**，值为其他判为云电脑。
+2. 无 `Computer OS` 字段时看 `Main project directory` 字段：Linux 路径`/home/user/Doubao/…`判为云电脑；值为其他，如 Mac 路径`/Users/…`、Windows 路径 `C:\…` 判为**本地电脑**。
+
+判为本地电脑、或两条都判不出时（判不出只放宽读 reference 的门槛，交付形态仍按上面两条判、判不出按云电脑），读完本 SKILL 后**必须先完整 Read `references/ref-local-compat.md`**；`Computer OS: Windows` 或者 `Main project directory` 为 Windows 路径的会话（依据上面同一个 SR），读完它**再完整 Read `references/ref-windows-compat.md`**——无论后续是否执行 lark-cli，跳过会大面积报错。
+
+**本地电脑分支**：SR 会注入 `file_status` / `token` 等 canvas 字段（没被打开过的文件不带），字段全表、失败判定与三态分支见 `references/ref-local-compat.md`。读它之前先记住一条：**Canvas 打开时**改动只落在工作目录的底层产物上，不写回用户真实本地文件、也不用 `lark-cli` 导出，交付用户提供的原文件路径并提醒自行保存；**Canvas 未打开时**（从未打开、或打开过又关闭）按第 2 节走 Excel 引擎，改动就地落在用户的真实文件上（打开过的按 `path` 定位）。
+
+### 2. 选引擎（按数据在哪，与交付形态无关）
+
+- **Excel 引擎**（Python + openpyxl + `scripts/`）：**本轮从零新建**（没有源表、没有在线表可改），或用户提供本地表格文件（上传附件或给出路径，`.xlsx` / `.xls` / `.csv`）且没有在线链接。按「开工纪律」的 Excel 引擎路径走；需在线原生透视 / 图表 / 条件格式时，导入后用对应 CLI 创建或维护所需对象，已有可用对象直接复用；导入成功不证明所需对象齐全。
+- **飞书表格引擎**（`lark-cli sheets`）：用户给出 `/sheets/`、`/spreadsheets/`、或指向电子表格的 `/wiki/` 链接，或飞书表格 token。按 URL 路径 / token 判定，不看域名。
+
+**例外**：本地电脑上被 Canvas 模式打开（`file_status` 为 `open`）的本地表格文件，编辑一律走飞书表格引擎，`lark-cli sheets` 以 `--spreadsheet-token <token>` 定位（不是 `--url`），可回滚、编辑状态实时可见。**本地电脑上**用 Excel 引擎编辑本地文件时 Python 改动不可回滚，动手前先**复制一份备份**；编辑落在原文件上，备份只做回滚快照——期间不更新、不交付。
+
+两套引擎经 `+workbook-import` 打通，交付形态按第 3 节判。本地内容与格式集中完成再导入；导入后的修改在该在线对象完成，不再修改失联的本地旧副本并重导。
+
+**在线修改按依赖合并**：插行 / 插列与填值一起放入 `+batch-update`，位置按前面子操作生效后的坐标填写，不在成功的插行与填值之间插入回读；仅当后续输入确实依赖尚未知的结果才拆开。样式 / 合并 / 尺寸 / 冻结合入一份 `+styles-put`。先取得本次操作所缺的值、公式或结构信息，已有上下文直接复用；成功回执承接下一步，失败按对应 reference 恢复。
+
+### 3. 交付契约（动手前先读完）
+
+**产物载体**：需要交付表格时，按以下规则选择飞书表格或本地文件。
+
+- **交飞书表格**（云电脑的新建与编辑、本地电脑的新建；导入不支持元素按下文处理）：默认交**飞书表格**。用户说"做个 Excel""给我个表""整理成表格""输出 Excel 格式 / .xlsx""可下载的 Excel 文件""原表格 / 原文件"、引用已有表格文件或任何预期输出表格产物，都走这条——**本地 xlsx 默认只是中间产物，必须 `+workbook-import` 导入再交付**；导入明确失败、重试一次仍失败时改交本地文件并写明原因。**stdout / URL 缺失时先按 `references/lark-sheets-workbook.md` 恢复原回执，不重导；定位只用用户输入或真实回执，不用示例地址**。无需按下文保留 Excel 时，导入后只交飞书链接，不重复附带 xlsx；继续做完用户要求的全部操作，不可导入即停。
+- **交本地文件路径**（本地电脑的编辑场景）：交付物与编辑对象同形态——改飞书表格就交飞书表格，**改本地文件就交本地文件路径，无需导入飞书**；交本地文件时**不得把 `token` 拼成在线链接**当产物给出。
+
+> **例外（两条都适用）**：用户明确表态时按用户的来——**明确拒绝**在线表格（"不要飞书表格""不要在线链接""给我 .csv 就行"）就改交本地文件；本地电脑改本地文件时用户**明确要在线表格 / 飞书链接**，就导入后交在线表；明确说"两个都要"时两者都交。第一条枚举的那些说法只是要产物、不是拒绝在线，仍按默认规则处理；处理不支持元素时，也可按下文交完整 Excel 或双交。Canvas 打开时，须先由用户保存、取得已保存的真实文件再导入，不导出底层产物或导入未保存的旧文件。
+
+**按导入回执处理兼容性**：读取本次回执中的 `ready`、`job_status` 与 `data.extra`。`+workbook-import` 返回成功仍可能有损。已确认导入或导出使用户要求保留的格式 / 功能发生变化时，同样按此分支处理，不以 `data.extra` 是否列出为条件。所有不支持元素按同一原则处理：有能满足需求且改动合理的方案时，尽量采用兼容替代，但不强制替换。已导入表能局部补齐时直接在线修改；确需重导时保留全部已完成内容与在线修改，读取新回执并交付最终链接。无法满足需求或不适合替代时，可交付包含本轮全部成果、保留原元素的完整 Excel，也可双交并说明在线版差异。不得为消除提示删掉必需内容，也不得从有损在线表导出文件冒充完整 Excel。可参考 `references/lark-sheets-workbook.md` 的替代示例，按实际内容、功能和改动成本选择。
+
+**分析结论按需回写表格**：当需要与原始数据联动或体现数据之间的关系时，可将分析结论回写到表格中（如结果工作表的摘要区或独立说明块）。用户仅需文字结论时，可直接在回复中交付，完成必要读取与核验，不为交付额外制表。仅请求分析、解释或建议不等于要求修改表格，不据此直接改表或另存修正版。用户要求制作、修改或交付表格，或本轮已写入表格时，仍须完成表格交付。
+
+**文件名**：用户点名文件名时沿用（工作簿标题去扩展名、附件名保留全名、`/` 换 `-`），不自拟；已有表不因此改名。
+
+**每轮必交**：本轮只要对飞书表格写入 / 编辑 / 更新过就必须按上述载体规则交付——数据来自文件 / 聊天记录 / 搜索结果 / 口述都算，本地 Excel 处理后导入也算。**跨轮同样要交**：同一张表前序轮次已交付过、URL 没变，本轮再改动后仍要重新交付最终 URL，不以“用户已打开表格”或“没有新文件”为由省略，也不得复用旧卡片或只提示刷新。**交付渠道只有一条**：飞书链接和本地文件路径都通过宿主的**产物交付工具**交出去——当前宿主是 `present_files`，参数按它自己的工具说明填；工具列表里换了名字时，取那个自述用于把最终产物交给用户的工具。**判据是这次调用真的发生并成功**：回执会列出交付了哪些条目，没调用或调用失败就是没交付、重发一次；把 URL 写进回复正文、或在回复里写「已交付」都不算。**工具交付时不重复贴产物 URL**：产物 URL 只填工具参数，调用前后的回复文本（包括进度说明和最终回复）均不输出裸 URL 或 Markdown 超链接；用产物名称说明结果与必要提醒。用户说“返回链接”也通过产物卡片满足。宿主未提供该能力或调用明确报工具不存在时，在正文给出最终 URL / 路径。在线编辑任务交付后不导出验证。
+
+### 4. 开工纪律（执行期）
+
+**语义结果质量**：默认保留源文本及行列对应，同格修改按用户要求；内部保留来源映射，未要求的溯源列不强加到结果表。清理前明确字符集合与位置，逐字匹配不自动 trim 或删改字符，保留要求的换行。翻译前绑定源行键与给定术语，结构标签、链接、占位符和要求保留的分段与可译正文分开处理，再按源结构重组；仅当原文、语言、术语要求与语境均一致时复用已有译文。字段缺失按约定处理，不丢整条记录或把未知数值补 0。原文提取先在未经清理的原串定位、按原串坐标切片（`scripts.sheet_data.extract_span`；本地同表同行可用 `excel_apply_edits.py` 的 `extract`），不在归一化后的文本上取最终片段或由模型重写；未限定数量时列全匹配项，无目标才留空；示例未声明穷举就不作类别白名单，不截短名称。跨列取材仅在任务允许时使用。分类统一标签与未知项口径，身份、数字或日期参与定义时不归一化掉。记录匹配用任务约定的完整键：比较键另存，版本、规格等身份字段保持原值，不先用别名合并冲突对象；多候选不取首条。翻译、总结和改写按用户格式及业务要求执行，不套连续片段判据。
+
+**图表标签（两套引擎都适用）**：折线图及组合图中的折线系列默认关闭整系列的逐点标签，仅用户明确要求时开启；末点、峰值、关键点等单点标签可按展示需要单独设置。
+
+**附件读取**：`.xlsx` 名称 / 尺寸探查、普通值或公式文本读取默认用 `openpyxl.load_workbook(path, read_only=True, data_only=False)`，需公式缓存才改 `data_only=True`。完整取数的末行 / 末列未独立确认，或尺寸声明缺失、可疑、与已知范围不符时，先 `ws.reset_dimensions()`，再流式读取所需范围；不把旧 `max_row` / `max_column` 作为迭代上限。边读边处理，不累计全部批次，用完 `close()`。整簿编辑或需完整对象 / 保真文本时按完整加载路径处理，复用该对象，不额外做一次只读预检；普通模式会全簿加载，文件大小不能证明内存够用。下载失败重试后用导入兜底；未读入的事实不得用常识或别的文件替代，缺口留空说明。文件缺失先核对真实路径，只恢复缺失部分，复用仍可用的数据与代码。中间文件走 workspace 相对路径。工具名取宿主实际清单；明确报不存在 / 不可用后，仅能力或参数发生有效变化才重试，不轮换猜测工具名；保留已完成文件并说明受阻部分。
+
+**大批记录与构建代码分开生成**：需要模型直接生成大批记录时，无论使用构建器还是自写脚本，都先将数据按完整记录分批落盘，再让构建代码读取；不要把整批数据、样式和构建逻辑塞进一次长输出。已出现长度截断、参数不完整或应有正文为空时，保留已完成文件，只缩小并恢复未完成部分，不原样整份重写。小表和已有数据处理链沿用直接路径，不为本规则额外转换格式。
+
+**Excel 引擎路径**：既有布局仅需精确关联的普通值回填、且样式不变时，用 `python3 scripts/excel_apply_edits.py --source ./before.xlsx --output ./output.xlsx --lookup ./lookup.json --scope '待填!B2:C40'` 一次匹配并只改内容，显式例外优先于来源列值；规格见 `references/guide-execution-flow.md`。需要公式联动、清洗聚合、结构或样式修改时用对应路径。需保留原簿并新增分析页时，在保真加载对象上 `create_sheet`，不从空簿复刻源页。指定筛选产生的交付数据集独立保留，各模型或指标从中 `.copy()` 取自身有效子集，不反向删源记录，见 `references/guide-execution-flow.md`。明细迭代排除标题、汇总及空白合并行，不另用固定行号截断；仅改原布局内内容、无特殊公式对象且样式不变时，按本次交付选择 `excel_apply_edits.py`，已有等价保真路径沿用：
+
+- **补齐后直接在线交付，允许上传且无其他本地加工**：`python3 scripts/excel_apply_edits.py --source ./before.xlsx --output ./output.xlsx --changes ./changes.json --scope '明细!D2:D20' --publish-state ./publish.json --name "交付标题"`；需要计算值时同次加 `--read-range '明细!D2:D6'`，直接消费 `delivery` 的取值与导入回执。
+- **仅本地交付、禁止上传或还要本地加工**：`python3 scripts/excel_apply_edits.py --source ./before.xlsx --output ./output.xlsx --changes ./changes.json --scope '明细!D2:D20'`，只保存不上传。用法与拒绝边界见 `references/guide-execution-flow.md`。
+
+新增区域表头与数据共用列定义，数据从完整表头区之后开始，多行表头或既有模板不压平；不扩并原合并区。用户要求的范围 / 维度驱动结果生成，统计派生列按定义构造，同一口径复用。多源合并尚无等价实现时用 `from scripts.sheet_data import MappedTable, UniqueLookup` 接已有迭代器；仅新单行字段表可用 `table.write_to(result_ws, header_row=2)` 写表头与全部记录，行号按结果区定位；追加已有明细则直接迭代 `table`，不重写表头。匹配保留完整身份键：唯一项才用 `match.value`；要求全部匹配时用 `match.project(fields)` 保留整组字段，明确去重才加 `distinct=True`。多列合入单格时用 `match.text_columns` 同步限长，完整 `overflow` 在允许的明细区保留，见 `references/guide-execution-flow.md`。已有可靠处理链沿用，不为模块另读或序列化数据。新建普通字段表且分块能减少生成工作时，可用 `python3 scripts/excel_build_workbook.py --spec ./book.json --output ./report.xlsx`；样式 / 结构调整不走内容编辑脚本。格式按 `references/ref-excel-visual-standards.md`，速度优先按 `references/mode-speed-first.md`。保存后处理已知异常，再导入与交付；不为证明完成另起排版或预览。
+
+**LibreOffice 只经脚本调用，两种模式都适用**：不直接执行 `soffice` / `libreoffice` / `unoconv`，也不 `pkill soffice`——裸命令落在共享 profile，一次中断后续启动全失败。用户要求格式转换 / 预览、后续操作依赖转换结果，或需定位已知版式异常时，用 `python3 scripts/excel_lo_convert.py <文件> <格式> --outdir <目录>`（png 只渲染一个子表首页、csv 只导出一个子表，默认第一个可见子表，`--sheet` 选择）。同一 xlsx 输入重复转 CSV/XLSX 可从首次加 `--reuse`；PDF/PNG 始终重新渲染。
+
+需要计算值时，按下一步选择入口，合并当前所需区域（最多16个/1000格）：
+
+- **本地处理已完成，随后在线交付**：`python3 scripts/excel_publish.py ./output.xlsx --state ./publish.json --read-range '实际子表名!B2:D6'`。一次返回 `calculation.ranges` 与原文件的 `import` 回执，按回执继续在线操作及交付；保留 `--state`，重复请求返回原回执，不另行调用重算和导入。
+- **仅本地交付，或还要用计算值继续本地加工**：`python3 scripts/excel_recalculate.py ./output.xlsx --read-range '实际子表名!B2:D6'`，直接消费 `ranges`；未知区域时可省略该 flag。
+
+保留回执 JSON 与 `.sheet-calculated`，需要其他值时读取其中准确的 `output`，不重新搜索目录；`values_only` 副本只供取值，交付 / 导入选原 `./output.xlsx`。首次调用或输入变化自动重算，`--fresh` 仅用于主动绕过复用，显式 `--output` 不覆盖已有文件。写入联动公式不自动触发改参数测试，用户要求核验或已有计算异常时按需处理。完整调用见 `references/guide-execution-flow.md`。
+
+退出5表示重算成功但取值失败，只读回执副本，不重复重算。退出4表示缺少 LibreOffice，不反复重跑；可选预览跳过，不安装引擎或另建 HTML / 浏览器截图链。明确要求或后续依赖的转换须用已有能力完成，否则说明未完成。**缺少 LibreOffice 只限制本地重算与格式转换，保存、导入和交付仍按原契约执行**；依赖计算值时按 `references/ref-local-compat.md` 处理，HTML / 图片不替代表格交付。不用 `| tail` 掩盖退出状态。
+
+## 二、标准模式动手前必读的 References
+
+> **仅标准模式执行本节的强制预读**：按当前动作读完所有命中行的 reference，再执行对应操作。**速度优先模式跳过本表的强制预读，按 `references/mode-speed-first.md` 决定需要读什么**；不要先加载本表文档再回头分流。环境兼容说明仍按第一节读取。所有 reference 都在 `references/` 下；对象操作按「三」速查表查命令。
+
+| 引擎 | 触发条件（命中就先读） | 读这份 |
+| --- | --- | --- |
+| 通用 | 仅复制、改文件名、导入或导出文件，后续无表内处理 | `references/lark-sheets-workbook.md`——使用文件路径与操作回执完成任务 |
+| **通用** | 需要读取或处理已有表格的内容（附件 / 飞书链接）——编辑、整理、补齐、分析、汇总、生成结果表都算（不含纯文件级操作） | `references/guide-execution-flow.md`——需要写入结果且用户没点落点时写新 sheet、原 sheet 一张不删，已有表 + 新数据 = **追加**、原有行一行不丢；用户点名要就地改 / 补齐 / 替换 / 删除时，按其授权在原表改 |
+| 通用 | 表内承载财务数据（营收 / 成本 / 利润 / 损益 / 现金流 / 估值 / DCF / 三张表 / 预算 / 税务 / 纳税 / 发票 / 审计 / 折旧 / 资产 / 负债 / 固定资产 / 无形资产 / 贷款 / 债券 / 利率 / 投资 / 薪酬 / 研发费用 / 招待费 / 捐赠 / EBITDA / IRR / NPV / LBO 等） | `references/ref-financial-modeling-standards.md` |
+| 通用 | 文本语义抽取 / 归类 / 打标 / 汇总 | 按「语义结果质量」处理 |
+| 通用 | 要输出数据分析报告 | `references/template-report.md` |
+| **飞书** | 写飞书公式之前 | `references/lark-sheets-formula-translation.md`（飞书函数与 Excel 有差异） |
+| 飞书 | 用户明确要求诊断公式 | `references/lark-sheets-formula-verify.md` |
+| 飞书 | 动作涉样式 / 美化 / 行高列宽 / 数字格式 | `references/lark-sheets-visual-standards.md`——⚠️ 其美化标准只适用于**从零新建的表**和**用户点名要美化的范围**；改已有表时**样式守恒**，原表行高 / 列宽 / 对齐 / 颜色 / 字体是基线，未被要求调整的一项不动，套用即破坏原格式 |
+| **Excel** | 新建或修改区域的样式、行高列宽、合并布局，或制作报表 / 打印预览；仅在模板补内容且保留原格式时不触发 | `references/ref-excel-visual-standards.md`——样式继承、布局与格式转换 |
+| **Excel** | 选择分块建表脚本；需要重算取值前 | `references/guide-execution-flow.md` §5.1——分块数据建表；§7——重算副本与结果读取 |
+
+## 三、飞书表格引擎（`lark-cli sheets`）——本章飞书专属，Excel 引擎任务不需读
+
+### 场景 → 命令速查
+
+> **标准模式**：按当前动作选行；下一步必须 Read 该行 reference，读取完成前不得执行命令。只读命中的文档；含公式 / 样式等横切动作时再读对应规范，禁止用目录枚举代替 Read。
+
+> **速度优先模式**：本表用于查命令，reference 按 `references/mode-speed-first.md` 的规则按需读取。
+
+| 你要做的事 | ✅ 正确写法 | 操作参考（标准模式动手前读） |
+| --- | --- | --- |
+| 读数据 | `+csv-get`（纯值/CSV）、`+cells-get`（公式/样式/批注）<br>**默认读全量**，不必分页；结果过大时自动落盘，按回执的 `output_path` 读文件 | 读 `references/lark-sheets-read-data.md` |
+| 写入数据 | `+csv-put`（无类型歧义纯文本）、`+table-put`（typed；量值/真日期；标签/编号/前导零/文本数字用 object，禁裸 csv-put）、`+cells-set`（公式/富写入；多个区域合入 `--writes`，按数据量分批提交，仅补内容不带样式；模板内容与样式均可覆盖时才用 `--copy-to-range`）、`+cells-set-style`（样式）、`+cells-set-image`（单元格图片） | 读 `references/lark-sheets-write-cells.md` |
+| 格式继承（新列/新行） | 物理插行 / 插列用 `+dim-insert --inherit-style before\|after`；新区域用 `+range-copy --paste-type formats` 先铺样式再写值；已有格仅补内容时保留原样式，用户要求复制格式时才套模板 | 读 `references/lark-sheets-range-operations.md`；插行插列再读 `references/lark-sheets-sheet-structure.md` |
+| 工作簿操作 | `+workbook-create`、`+workbook-info`、`+workbook-import`、`+sheet-copy`、`+revision-get`、`+workbook-export`；读取导入回执的 `data.extra`，有合适方案时优先考虑替代，不强制替换；可交完整 Excel 或双交并说明差异 | 读 `references/lark-sheets-workbook.md` |
+| 行列操作 | 排序用 `+range-sort` 原子移动整行；布局变更才用 `+cells-merge` / `+cells-unmerge`，仅补内容保留合并区、写左上角，新增结果列不扩并原区；清空内容才用 `+cells-clear`；尺寸用 `+cols-resize` / `+rows-resize` | 读 `references/lark-sheets-range-operations.md`；涉结构布局再读 `references/lark-sheets-sheet-structure.md` |
+| 美化收尾 | `+styles-put`：样式 / 合并 / 行高列宽 / 冻结**一份规格一次交付**，不要拆成多次 `+cells-set-style` / `+cells-merge` / `+cols-resize`（十几次往返换同一个结果）；只冻结表头用 `+dim-freeze --rows 1`——**没有 `+sheet-freeze` 这个命令** | 读 `references/lark-sheets-styles-put.md` |
+| 子表结构 | `+sheet-info`、`+dim-insert`；插行列后填值合入 `+batch-update --operations @ops.json --yes`，后续坐标按前序修改计算；删整行 / 列用 `+dim-delete`，不能用 clear 代替 | 读 `references/lark-sheets-sheet-structure.md`；成套修改再读 `references/lark-sheets-batch-update.md` |
+| 画图表 / 可视化 / 柱状图 / 折线图 / 饼图 / 趋势 / 占比 | 单图用 `+chart-create-basic`，多图用扁平输入的 `+batch-chart-create`；改已有图的数据源用 `+chart-data-update`、配置用 `+chart-config-update`；只有语义 shortcut 表达不了的单系列 / 单数据点 / 高级字段才用 `+chart-create` / `+chart-update`，且只提交必要的局部 properties。按需求选择图表类型、横轴字段、分组字段和目标张数；图片迁移成真图表后删除原浮动图片 | 读 `references/lark-sheets-chart.md`；含透视 / 分组汇总再读 `references/lark-sheets-pivot-table.md` |
+| 分组汇总 / 透视 | `+pivot-create` | 读 `references/lark-sheets-pivot-table.md` |
+| 筛选 / 只看符合条件的行 | `+filter-create` | 读 `references/lark-sheets-filter.md` |
+| 查找 / 替换文本 | `+cells-search`、`+cells-replace` | 读 `references/lark-sheets-search-replace.md` |
+| 条件格式 / 条件高亮 / 数据条 / 色阶 | 随数据变化的标色用 `+cond-format-create`；固定刷色只用于用户点名要静态着色 | 读 `references/lark-sheets-conditional-format.md` |
+| 插图：自由摆放的装饰 | `+float-image-create` | 读 `references/lark-sheets-float-image.md` |
+| 迷你图 / 单元格内趋势线 | `+sparkline-create` | 读 `references/lark-sheets-sparkline.md` |
+| 批量清除多区域 | `+cells-batch-clear` | 读 `references/lark-sheets-batch-update.md`（high-risk） |
+| 用户要求复核编辑变更 / 取版本间差异 | `+changeset-get` | 读 `references/lark-sheets-changeset.md` |
+| 保存多份筛选状态 / 命名筛选视图 | `+filter-view-create`；视图与 `+filter-create` 相互独立、可在同一子表共存 | 读 `references/lark-sheets-filter-view.md` |
+| 查编辑历史 / 回滚到历史版本 | `+history-list` 取版本，`+history-revert`（high-risk，异步）回滚后用 `+history-revert-status` 轮询 | 读 `references/lark-sheets-history.md` |
+
+> ⚠️ 金额 / 百分比 / 比率 / 计数及参与运算的真日期写数字（百分比传 `0.4` + `number_format`）；日期标签、编号、前导零、身份证 / 单据号写文本。`--range` 只写 `A1:B2`，子表另传 `--sheet-id` / `--sheet-name`。
+
+### 飞书表格编辑准则
+
+
+1. **最小改动**：按坐标和属性界定授权；补值不重刷原格式，美化不清理原文本或改写公式；恢复公式使用改前表达式，不以 CSV 显示值回填公式区。用户没点名要删 / 改名 / 隐藏时，已有 Sheet 一张不动；补齐只写空格，已有空格的底色 / 边框 / 验证也保留，不因填完内容清除原提示色。填写模板保留行标签与字段列序，不为说明来源擅自扩列或合并待填区。
+2. **目标子表**：先确认真实末行与目标区域；多级表头结合上层标题、子标题与合并范围定位字段，不只按底层同名标题匹配。未点名子表时只从 `resource_type=sheet && is_hidden=false` 的可见网格候选里选，唯一才自动使用，多张不得按 index 猜。涉及“所有 / 每个 sheet”时先 `+workbook-info` 列全再逐个处理；读取其他子表不扩大修改范围。回写要按行号定位时取 `row_indices`（或加 `--include-row-prefix` 读 `[row=N]`），`cells-get` 的样式字段与值分开处理。
+3. **公式计算**：可推导值默认写落格公式，用户明确要求固定结果时写值；其余数值计算引用源格，不将 Python 计算值硬编码回填。按字段、阈值边界（以上/至少=`>=`，超过/大于=`>`）、单位/时区与完整源范围编写公式。AI 公式按 `lark-sheets-ai-formula-monitoring` 分流：无需 AI 真值时写入成功即可交付；需 AI 真值时等待计算完成再读取结果，原位编辑按映射回写 AI 值。pending 不据此静态回退。
+4. **完整继承样式**：新增行列时禁止只读值只写值——原表字体、对齐、底色（含奇偶行交替）、四边框都延续到新区域。**物理插入行 / 列**用 `+dim-insert --inherit-style before|after`（原生继承，比补刷可靠）；**新区域或用户要求复制格式时**用 `+range-copy --paste-type formats`；已有格仅补内容时保留原样式。非规则样式继承用 `+cells-get --include style` 读源区样式随值写回。无论走哪条路径，新增区域优先沿用源区行高列宽，已适配的不重设；行高不随样式继承，确需补齐时用 `+rows-resize` 一次设置，合并与跨列标题按原布局延续。详见 `references/lark-sheets-write-cells.md`。
+5. **原子操作**：排序用 `+range-sort`，`--range` 覆盖完整记录宽度，先按表头确定业务主键及优先级，再写入 `--sort-keys`；自定义等级用辅助键，不改原标签；删除记录用 `+dim-delete`，清空内容 / 格式才用 `+cells-clear`；禁止读值后用 `+csv-put` 覆盖来模拟排序 / 删除。仅跨类型且有顺序依赖时才用 high-risk `+batch-update`。
+6. **标色分流**：数据变化后应自动重算的高亮 / 标红用条件格式——凡按值 / 规则决定哪些格上色的都算，哪怕只标一次；静态样式只用于用户逐个点名的单元格或人工判断的结果，装饰性美化按视觉规范。两条路径取色字段用同一判据：用户中文语境下的"标红 / 染色 / 标记"指**单元格背景色**，"文字红 / 字体红 / 把字变红"才用字体色，默认无说明时选背景色。
+7. **按用户约定组织产物**：用户点名的 sheet 名与数量、表头、标题、图例、文件名、口径逐字保留；匹配先明确相等 / 包含及允许的归一化，比较键另存并保留原文，身份字段冲突不归并。一对多且无唯一依据时保留冲突：文本目标允许列候选时列全，金额 / 日期等单值目标不取首条或就近值，按约定保留原格或留空说明；不用相似项补缺，不用明细行数代替唯一对象数；按约定的业务粒度和键集合聚合。依据执行回执说明已完成的操作、产物位置及未完成项。
+8. **替换与新增**：新增列要有表头，单位 / 口径另置，不占原表头或数据格。
+9. **不编造**：表外数据须有可核验来源，不用常识或名称推断伪造公司、标准值、行情或法规参数；**没有来源就留空**——凭记忆填的数值大概率与真实值对不上，比留空更糟。留空的格在交付说明里逐项列出格址与缺的来源，不要只写一句"部分数据缺失"。非数值评价可据给定事实概括，不得扩写成未经提供的职责、经历或成果。确需推断的描述须标明是推断及依据，不把推断写成既有事实。
+
+> 流程：了解结构 →（未点名时先按 visible_grid selection 定位）→ 读数据 → 原生工具写入 → 在线交付。新建表可按布局冻结表头；已有表仅整理数据或加汇总行时保留冻结设置，用户要求美化或调整冻结时再按其范围处理。
+
+> 写前读取用于目标定位与业务计算，已有信息足够时直接复用。写入后处理回执中的错误和异步状态，再继续后续操作或交付；写后内容比对用于用户明确要求的核验；已有信息显示具体异常时，仅按受影响范围定位和修复，不能据此扩展为全表复验。不因“保持原样”或“已完成”表述另起一轮回读、抽样重算或逐行比对。
+
+### 公共 flag 速查
+
+各 reference 的 shortcut 标题下用一行徽章列出公共 / 系统 flag（如 `_公共四件套 · 系统：--dry-run_`）。徽章不声明必填性；各命令的必填、可选及互斥关系以对应 reference 入参说明为准。
+
+#### 公共 flag（定位资源）
+
+**公共四件套** = `--url` / `--spreadsheet-token` / `--sheet-id` / `--sheet-name`：`spreadsheet` 指工作簿、`sheet` 指子表。默认按两组 XOR 定位，每组二选一必填；命令明确标注子表定位可选时允许省略，省略后的范围按该命令说明执行。条件格式 / 图表 / 筛选视图 / 透视表 / 迷你图 / 浮动图片等对象另用各自的 `--*-id` 定位：
+
+1. **spreadsheet 定位（必填）**：`--url`（解析 `/sheets/`、`/spreadsheets/`、`/wiki/` 三种链接；wiki 链接自动定位背后的电子表格）与 `--spreadsheet-token`（裸 token）二选一。**例外**：`+workbook-create` / `+workbook-import` 产出**还不存在**的表，不接受任何定位 flag。
+2. **sheet 定位**：支持 `--sheet-id` / `--sheet-name` 的命令按入参说明选一种；是否必填由该命令规定。徽章 `公共：URL/token（无 sheet 定位）` 指 URL/token 这一组只定位工作簿、不定位子表；命令仍可另有 `--sheet-id` / `--sheet-name` 参数，按该命令说明使用。
+   - ⚠️ **不确定 sheet 名时禁止猜 `Sheet1`**：除非对话或上下文已出现具体值，第一步先 `+workbook-info` 拿 `sheets[].sheet_id/title` 再选——中文表的子表常叫"数据"/"工作表 1"/业务名，猜名大概率撞 `sheet not found`。
+   - ⚠️ **要求 sheet 定位的命令，`--range` 里的 `Sheet1!` 前缀不能替代它**：仍须传 `--sheet-id` / `--sheet-name`。
+   - ⚠️ **A1 引用含 `!` 时整段用单引号包裹**（`--range 'Sheet1!A1:B2'`，挡 bash history expansion；别用 `set +H`，sh/dash 下非法）。sheet 名要在 A1 里内层再包单引号时用 `'\''` 转义。
+   - **不接受 sheet 定位的命令**：工作簿级（`+workbook-info` / `+sheet-list` / `+sheet-create` / `+revision-get` / `+changeset-get` / `+history-list|revert|revert-status`）、批量与整表级（`+batch-update` / `+batch-chart-create|update` / `+cells-batch-clear` / `+styles-put` / `+dropdown-update|delete`），以及子表名写在 payload 里的 `+table-put`。`+workbook-export` 只接 `--sheet-id`（无 `--sheet-name`），`+pivot-create` 用 `--target-sheet-id/name`（XOR，可都不传）。本行是速记，完整定位约束见对应 reference。
+
+> ⏬ 未完——继续调整 offset 续读，直到末行「全文完」标记。
+
+```bash
+# +csv-get 要求两组定位（占位符别原样填；表名先 +workbook-info 查）
+lark-cli sheets +csv-get --url "https://.../sheets/shtXXX" --sheet-name "<真实表名>" --range "A1:F30"
+```
+
+#### 系统 flag
+
+| Flag | Type | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `--dry-run` | bool | 否 | 零副作用：仅打印请求路径与参数模板，不发起调用 |
+| `--yes` | bool | 是（仅 `high-risk-write`） | 二次确认；不带时退出码 10。 |
+| `--print-schema` | bool | 否 | 写复合 JSON flag 前结构不确定就先跑它：本地打印 Schema 并退出（不发起调用、不需要其它 required flag），搭配 `--flag-name` 指定查哪个 flag，省略时列出该 shortcut 可查的 flag。只有含复合 JSON flag 的 shortcut 支持。 |
+| `--flag-name` | string | 否 | 配合 `--print-schema`：flag 名不带 `--` 前缀（`cells` / `properties`）。**支持点分路径切片**：`--flag-name properties.snapshot.plotArea.axes` 只打印该子树，大 schema（chart 的 properties 约 1700 行）按需取，别整篇翻页。 |
+
+> **bool flag 语法**：开启可用裸 `--flag`；显式值只用 `--flag=true` 或 `--flag=false`，不得用空格分隔。
+
+> ⚠️ **high-risk-write 命令清单（exit 10 授权确认）**：`+batch-update`、`+cells-clear`、`+cells-batch-clear`、`+sheet-delete`、`+dim-delete`、`+dropdown-delete`、`+history-revert`（整表回滚到历史版本），以及各对象删除 `+chart-delete` / `+pivot-delete` / `+cond-format-delete` / `+filter-delete` / `+filter-view-delete` / `+sparkline-delete` / `+float-image-delete`。
+>
+> **审批协议**：先 `--dry-run` 预览、向用户展示将执行的操作与影响范围，**获得用户明确同意后**再在原命令追加 `--yes` 执行。未经用户同意不得带 `--yes`，也不得在 exit 10 后静默补 `--yes` 重试——那等于绕过授权确认。
+
+**Schema 的边界**：`--print-schema` 打印的是 flag 值的内部结构，flag 描述要求外层信封时（如 `--sheets` 的 `{"sheets":[…]}`）schema 里看不到那层，按描述补上；reference 的 `## Schemas` 段也只给一层。图表直接 `+chart-create --print-example <type>` 拿最小可用模板改参。
+
+#### flag 内容类型与输出约定（术语速记）
+
+- JSON 类入参分三类：**复合 JSON** = 深层嵌套对象（`--print-schema` 可查）；**简单 JSON** = 一二维标量数组；**非 JSON 文本** = 原样文本（如 CSV）。
+- **envelope**：所有 shortcut 返回统一外层 `{ok, identity, data, ...}`；执行结果按回执中的 `ok` 与业务状态处理；异步操作按对应 reference 等待完成，失败时按错误定位恢复。
+- **大 payload 走文件 / stdin，不在命令行内联**：Type 标 `File + Stdin` 的 flag 支持 `--flag "@./x.json"`（`@file` 只接受 cwd 下相对路径，绝对路径被拒）与 `--flag -`（stdin）；payload 含换行 / 引号或体量大时一律落文件。**stdin 每次调用只能给一个 flag**——`+table-put` 的 `--sheets` 与 `--styles` 都是大 JSON 时，一个走 `-`、另一个走 `@./x.json`。临时文件不要落进用户项目目录。
+
+===== 全文完（共 220 行）=====

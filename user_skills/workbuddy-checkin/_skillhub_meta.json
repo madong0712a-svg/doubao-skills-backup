@@ -1,0 +1,12 @@
+{
+  "slug": "workbuddy-auto",
+  "name": "WorkBuddy积分自动领取",
+  "version": "2.1.0",
+  "installedAt": 1794179437756,
+  "source": "skillhub",
+  "namespace": "user_934b64b5",
+  "canonicalName": "@user_934b64b5/workbuddy-auto",
+  "iconSource": "https://skillhub-1388575217.cos.accelerate.myqcloud.com/skill-icons/uploads/730320/5b3eee06609649c79912f2feefff0503.png",
+  "iconLocalPath": "C:\\Users\\madong\\.workbuddy\\skills\\workbuddy-auto__skillhub\\_icon.png",
+  "iconDownloadedFrom": "https://skillhub-1388575217.cos.accelerate.myqcloud.com/skill-icons/uploads/730320/5b3eee06609649c79912f2feefff0503.png"
+}

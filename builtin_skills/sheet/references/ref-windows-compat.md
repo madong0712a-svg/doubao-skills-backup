@@ -1,0 +1,62 @@
+# Windows 兼容性
+
+用于运行环境判定为 Windows 本地电脑的会话（判定规则见主文档「运行环境」一节），表明当前所在的设备是 Windows。Windows上需要使用 PowerShell 替换 Bash 工具调用，本 Skill 默认的 bash 示例（`jq --rawfile`、`--data "$(...)"`、`&&` 组合、`--output C:\...`、`ls -la`、`$PID` 等）会直接失败，故需要替换成其他命令来执行。macOS / Linux 不受本文件约束。
+
+## 硬规则
+1. **每次 PowerShell 调用只跑一条外部命令**：禁止 `&&` / `||` / heredoc / `$(...)` / `<<<`；组合逻辑走多次 PowerShell 调用或落成 `.py`。
+2. **lark-cli 路径只接受 CWD 内相对路径**：`--file` / `--output-path` / `--image ./xxx`，传 C盘路径比如 `C:\...` 这种绝对路径会被拒。开工第一步 `cd "<chat 目录>"`，之后一律 `./xxx`。
+3. **禁止内联 JSON（lark-cli 和 Python 脚本均适用）**：PowerShell 对引号和转义符的处理与 Bash 不同，内联 JSON 的引号可能被剥离、参数被拆散，导致 `invalid JSON` 或 `unrecognized arguments`。因此必须先用 Write 工具保存 UTF-8 JSON 文件，再通过已支持的文件参数传入，如 `--protection "@./protection.json"` 和 `--cond-format "@./cond-format.json"`（`@文件` 须加双引号）；相对路径以命令当前工作目录为基准，文件须写在对应位置，不要靠增加转义符重试。
+4. **不假设 Unix 工具存在**：PowerShell 不支持 `jq` / `wget` / `unzip` / `sed` / `awk` / `pdftotext` / `base64` / `file`/ `head` / `tail` / `grep` / `which` 这些在Unix中存在的命令。
+5. **同名指令的不同含义** ：PowerShell 中，同名指令的含义可能与 Unix 中不同。`curl` 是 `Invoke-WebRequest` 别名，`ls` / `dir` 是`Get-ChildItem` 的别名, 这些同名指令与Unix中的命令参数不同。
+6. **按进程退出码与业务回执判断结果**：stderr 同时承载错误、进度和警告，PowerShell 的 `NativeCommandError` 不单独证明 CLI 业务失败。需要准确结果时，分别保留进程退出码、stdout 和 stderr，不合流解析；退出 0 但 stdout / URL 缺失属于回执未取得，先读取原任务输出或已有文件，按 `references/lark-sheets-workbook.md` 恢复原导入，不为拿输出连续编写探测脚本或重新创建表格。
+7. **`python -c "..."` 里禁止出现 `\"`、`'''` 内含 `"`、`"""` 或任何双引号相关的转义**：同样由于 PowerShell 对引号的处理不同，凡是脚本里要用双引号的场景，一律 Write 到 `.py` 文件后 `python xxx.py`。
+8. **不使用 PowerShell 自动变量作赋值目标**：`$PID / $HOME / $PWD / $args / $input / $error / $host / $true / $false / $null`，改用 `$PRES_ID / $SLIDE_ID / $FILE_TOKEN` 等前缀化命名。
+9. **文件读写走工具本身或 Python**：不要用 `>` / `Out-File` / `Get-Content ... | cli --xxx -`——PowerShell 5 默认非 UTF-8、加 BOM、走 stdin 时非 ASCII 字节会被重编码。让 lark-cli 用 `--output-path` / `--file` 、让 Python 用 `open(..., encoding='utf-8')`。
+10. **`python3` 调不通时改用 `python`**：Windows 上 `python3` 这个名字不一定存在，但部分沙箱会下发同名可执行文件，能直接调通。正文里以 `python3` 开头的脚本命令先按原样执行；报「找不到命令」一类错误时换成 `python` 重跑，路径与参数不变。
+11. **安装依赖使用 `python -m pip install <包名>`**：使用与运行脚本相同的 Python 解释器，不直接调用 `pip`。
+
+## 禁用命令 → 兼容替代
+
+### shell 组合
+
+| 禁用 | 症状 | ✅ 替代 |
+|---|---|---|
+| `cmd1 && cmd2` | `The token '&&' is not a valid statement separator` | 拆成两次 PowerShell 调用；或 `python -c "import subprocess; subprocess.check_call([...]); subprocess.check_call([...])"` |
+| `<<'EOF' ... EOF` / `<<<` | PowerShell 不支持 Bash 的 heredoc 写法 | 先 Write 到文件（`.py` / `.json`）再引用 |
+| `"$(cmd)"` / `` `cmd` `` | PowerShell 的 `$(...)` 是表达式插值，非命令替换 | 让 Python 跑外部命令，shell 层只做一件事 |
+| `cmd 2>&1 \| Select-Object -Last 5` | native stderr 被 PowerShell 视为 error-record，`2>&1` 语义不同 | 直接跑命令；截断输出用 `python -c "print(''.join(open('out.txt').readlines()[-5:]))"` |
+| `mkdir -p dir` | PowerShell5 的 `mkdir` 不支持 `-p` | `python -c "import pathlib; pathlib.Path('dir').mkdir(parents=True, exist_ok=True)"` |
+| `ls -la <path>` | `Get-ChildItem: A parameter cannot be found that matches parameter name 'la'` | 用 Read 工具；或 `python -c "import os,sys;p=sys.argv[1];print(os.path.exists(p), os.path.getsize(p) if os.path.exists(p) else 0)" <path>` |
+
+### Unix-only 工具
+
+| 禁用 | ✅ 替代 |
+|---|---|
+| `jq -n --rawfile c slide.xml '{slide:{content:$c}}'` | Write 一段 `build_payload.py`（`json.dump({'slide':{'content':open(sys.argv[1],encoding='utf-8').read()}}, open(sys.argv[2],'w',encoding='utf-8'), ensure_ascii=False)`），再 `--data @payload.json` |
+| `wget URL -O file` | `python -c "import urllib.request; urllib.request.urlretrieve('URL','file')"` |
+| `curl -L -o file URL` | 同上；或显式 `curl.exe -L -o file URL`（`.exe` 后缀绕过 PowerShell 别名） |
+| `unzip file.zip` | `python -c "import zipfile; zipfile.ZipFile('file.zip').extractall('.')"` |
+| `sed -i` / `awk` | Python `re.sub` / 处理逻辑 |
+| `pdftotext file.pdf -` | `python -c "import fitz; print(''.join(p.get_text() for p in fitz.open('file.pdf')))"` |
+| `base64 -d` | 对已有的通用 base64 文本可用 `python -c "import base64,sys; sys.stdout.buffer.write(base64.b64decode(sys.stdin.read()))"`；图表缩略图不用本通用写法，按 `references/lark-sheets-chart.md` 直接运行 `lark_chart_thumbnail_decode.py --url ... --sheet-id ... --chart-id ... --output-dir ...` |
+
+### lark-cli 参数
+
+| 禁用 | 症状 | ✅ 替代 |
+|---|---|---|
+| `--file "C:\Users\...\data.xlsx"` | `--file must be a relative path within the current directory` | 同上，先 `cd` 文件所在目录或者将文件放到当前工作目录再 `--file "./data.xlsx"` |
+| `--output-path "C:\Users\...\data.xlsx"` | `--output-path must be a relative path within the current directory` | 先 `cd "<chat 目录>/<sess>"`当前工作目录，再 `--output-path "./data.xlsx"` |
+| `--border-styles @payload.json`（未加引号） | `The splatting operator '@' cannot be used to reference variables in an expression` | 加双引号：`--border-styles "@./payload.json"` |
+| `--border-styles "$(jq ...)"` | jq 不存在 + PowerShell无命令替换 | Write `payload.json` 后 `--border-styles "@./payload.json"` |
+| `--border-styles "{\"top\": {\"style\":\"solid\",\"weight\":\"thin\",\"color\": \"#000000\"}}"` | PowerShell 双引号不认 `\"` 转义，lark-cli 收到坏 JSON | Write `payload.json` 后 `--border-styles "@./payload.json"` |
+| `--options '["待制作","测试中"]'`（任何含中文的内联 JSON） | `invalid JSON: invalid character '待' looking for beginning of value` | Write 成文件后 `--options "@./options.json"`；同一条命令里的多个 payload flag 各写一个文件 |
+
+### 编码 / BOM / CRLF
+
+| 禁用 | 症状 | ✅ 替代 |
+|---|---|---|
+| `Get-Content file.json -Raw \| lark-cli ... --border-styles -` | 中文 UTF-8 字节被 PowerShell 管道重编码，`invalid character '\uXX'` | 改 `--border-styles "@./file.json"` |
+| `'{"k":"v"}' \| Out-File params.json` | Out-File 默认 UTF-16 LE + BOM，lark-cli 解析失败 | 用 Write 工具生成；或 `python -c "import json; json.dump({'k':'v'}, open('params.json','w',encoding='utf-8'), ensure_ascii=False)"` |
+| shell 重定向 `> out.xlsx` | PowerShell5 默认 UTF-16 LE + BOM | 让工具自己写文件（`--output-path "./out.xlsx"`），或 Python 写 |
+
+===== 全文完（共 62 行）=====

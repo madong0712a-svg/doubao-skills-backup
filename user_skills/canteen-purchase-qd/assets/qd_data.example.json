@@ -1,0 +1,29 @@
+{
+  "title": "11月29日-12月3日采购清单",
+  "output_dir": "C:\\Users\\madong\\Doubao\\chats\\2026-11-27\\new-chat-3",
+  "restaurant": "合阳县新池镇中学",
+  "supplier": "合阳县腾婷青菜干菜店",
+  "source": "微信「黑池彤彤」",
+  "sheets": [
+    {
+      "date": "11月29日",
+      "rows": [
+        {"name": "蒜苔", "qty": 6, "price": 3.9, "note": ""},
+        {"name": "白菜", "qty": 33, "price": 0.2, "note": "单价待核对"}
+      ]
+    },
+    {
+      "date": "12月1日",
+      "rows": [
+        {"name": "豆腐", "qty": 7.8, "price": 1.8, "note": ""}
+      ]
+    },
+    {
+      "date": "12月3日",
+      "rows": [
+        {"name": "白萝卜", "qty": 25, "price": 1.2, "note": ""}
+      ]
+    }
+  ],
+  "grand": {"items": 0, "qty": 0, "amt": 0}
+}

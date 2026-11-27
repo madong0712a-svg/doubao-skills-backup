@@ -1,0 +1,39 @@
+name: sign-helper
+slug: sign-helper
+version: 1.0.0
+display_name: 签到助手
+display_name_en: Check-in Assistant
+description: "WorkBuddy加油站每日积分签到助手：仅做每日签到提醒、本地打卡记录与断签保护，不模拟点击、不读写登录态、不调用任何平台接口，实际签到动作由用户在客户端手动完成。适用场景：每天想被提醒签到；追踪连续打卡天数与里程碑；避免忘记签到导致断签。合规声明：仅做签到提醒，不读取账号凭据、不逆向平台接口或任何替代用户真实操作的行为。触发词：签到、领积分、buddy积分、签到助手、签到提醒、提醒我签到、打卡、断签了怎么办。"
+description_zh: "WorkBuddy加油站每日积分签到助手：每日签到定时提醒、本地打卡记录与断签保护，不模拟点击或逆向接口，最后那一下签到由用户自己在客户端手动完成。触发词：签到、领积分、buddy积分、签到助手、签到提醒、提醒我签到、打卡、断签了怎么办。"
+description_en: "A reminder-only daily check-in assistant: scheduled reminders, local streak tracking, and missed-day protection. It never simulates clicks, reads credentials, or calls any platform API — the actual check-in is done by the user manually in the client."
+author: 热火集工具站
+category: 效率工具
+license: MIT
+compatibility: 纯提示型技能，无需 Python / 网络 / 外部依赖；仅依赖用户在 WorkBuddy 客户端手动完成签到
+tags:
+  - 签到
+  - 每日签到
+  - 签到提醒
+  - 打卡
+  - 连续打卡
+  - 断签保护
+  - 提醒助手
+triggers:
+  - 签到
+  - 领积分
+  - buddy积分
+  - 签到助手
+  - 签到提醒
+  - 提醒我签到
+  - 打卡
+  - 断签了怎么办
+examples_zh:
+  - 提醒我每天签到
+  - 今天签到了吗，帮我记一下
+  - 我连续打卡几天了
+  - 断签了怎么办
+examples_en:
+  - Remind me to check in every day
+  - Did I check in today? Please record it
+  - How many days is my streak?
+  - What if I miss a day?

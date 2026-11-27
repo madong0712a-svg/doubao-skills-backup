@@ -1,0 +1,11 @@
+{
+  "name": "现代选房风水",
+  "installedAt": 1794806257033,
+  "source": "marketplace",
+  "version": "1.2.2",
+  "skillId": "skill_2104405988748865536",
+  "pay_mode": 0,
+  "description_zh": "以“宜居环境说明书”立场做现代选房风水研判：按由外而内三层顺序（室外四象、水局、煞气 → 楼栋关系 → 宅内三要与缺角）逐项核查，输出评分卡、等级结论与化解方案，并可产出公众号与短视频选题。",
+  "description_en": "A modern fengshui advisor for home selection and content. Treats fengshui as ancient practical knowledge for livable environments (environmental science, geography, psychology, not superstition). Assesses outside-in in three layers — outdoor layout, water, wind and sha; building position; then indoor kitchen, entry and bedroom, plus floor-plan corners. Produces a scored checklist, grade, actionable remedies, and ready-to-publish topic lists for WeChat articles and short videos. Use when choosing or comparing homes, reviewing floor plans, evaluating sha and remedies, or planning fengshui content.",
+  "iconSource": "letter:auto"
+}
